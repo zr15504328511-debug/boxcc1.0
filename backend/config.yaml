@@ -1,0 +1,91 @@
+﻿# boxcc Python Backend Configuration
+config_version: 1
+
+models:
+  - name: deepseek-v3
+    display_name: DeepSeek V3
+    use: langchain_openai:ChatOpenAI
+    model: deepseek-chat
+    api_key: $DEEPSEEK_API_KEY
+    base_url: https://api.deepseek.com/v1
+    max_tokens: 8192
+    temperature: 0.7
+
+departments:
+  max_concurrent: 4
+  timeout_seconds: 1800
+
+  agents:
+    - id: dom
+      name: 学术部
+      display_name: 学术部
+      description: 负责服装专业知识与工艺判断
+      enabled: true
+      model: inherit
+      spec_path: agentspecs/dom.md
+      skill_packs: [fabric_rag, trend_search]
+
+    - id: pln
+      name: 企划部
+      display_name: 企划部
+      description: 负责企划结构、SKU 与波段规划
+      enabled: true
+      model: inherit
+      spec_path: agentspecs/pln.md
+      skill_packs: [sheet_builder, calendar_planner]
+
+    - id: ana
+      name: 经营部
+      display_name: 经营部
+      description: 负责价格、成本与经营分析
+      enabled: true
+      model: inherit
+      spec_path: agentspecs/ana.md
+      skill_packs: [sheet_builder, margin_modeler]
+
+    - id: crt
+      name: 质检部
+      display_name: 质检部
+      description: 负责风控、复核并审查各部门的综合方案
+      enabled: true
+      model: inherit
+      spec_path: agentspecs/crt.md
+      skill_packs: [code_review, web_review, image_review, video_review, artifact_review]
+      max_turns: 15
+
+    - id: cpy
+      name: 宣传部
+      display_name: 宣传部
+      description: 负责卖点翻译、传播表达与文案输出
+      enabled: true
+      model: inherit
+      spec_path: agentspecs/cpy.md
+      skill_packs: [trend_search, ppt_outline]
+      max_turns: 15
+
+lead_agent:
+  spec_path: agentspecs/orc.md
+
+summarization:
+  enabled: true
+  max_token_threshold: 12000
+  keep_recent_messages: 8
+
+memory:
+  enabled: false
+  storage_path: data/memory.json
+  debounce_seconds: 30
+  max_facts: 100
+  max_injection_tokens: 2000
+
+title:
+  enabled: true
+  max_chars: 60
+
+checkpointer:
+  type: sqlite
+  connection_string: data/checkpoints.db
+
+server:
+  host: 127.0.0.1
+  port: 18900

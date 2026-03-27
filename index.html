@@ -1,0 +1,1846 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>boxcc</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --font-base: 14px;
+        }
+
+        /* WINDOWS 98 THEME (Reverted to classic grey) */
+        [data-theme="win98"] {
+            --bg-app: #4a5d6a;
+            --bg-panel: #c0c0c0;
+            --bg-inner: #e1e1e1;
+            --bg-header: #eee;
+            --bg-msg-area: #ffffff;
+            --text-main: #000000;
+            --text-muted: #808080;
+            --border-light: #ffffff;
+            --border-dark: #808080;
+            --border-darker: #404040;
+            --border-panel: 2px solid;
+            --border-input: 2px solid;
+            --radius-panel: 0;
+            --radius-btn: 0;
+            --shadow-panel: none;
+            --shadow-btn: none;
+            --font-family: "Tahoma", "Segoe UI", sans-serif;
+            --title-bg: #000080;
+            --title-text: #ffffff;
+            --history-bg: #b0b0b0;
+            --history-active: #c0c0c0;
+            --msg-user-bg: #d4d0c8;
+            --msg-assistant-bg: #ffffff;
+            --msg-border: 1px solid #808080;
+            --msg-user-text: #000000;
+        }
+
+        /* MAC OS THEME */
+        [data-theme="mac"] {
+            --bg-app: #e5e5ea;
+            --bg-panel: #f5f5f7;
+            --bg-inner: #ffffff;
+            --bg-header: #f5f5f7;
+            --bg-msg-area: #ffffff;
+            --text-main: #1d1d1f;
+            --text-muted: #86868b;
+            --border-light: #e5e5ea;
+            --border-dark: #d1d1d6;
+            --border-darker: #c7c7cc;
+            --border-panel: 1px solid #d1d1d6;
+            --border-input: 1px solid #d1d1d6;
+            --radius-panel: 10px;
+            --radius-btn: 6px;
+            --shadow-panel: 0 4px 14px rgba(0,0,0,0.08);
+            --shadow-btn: 0 1px 2px rgba(0,0,0,0.05);
+            --font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+            --title-bg: #e5e5ea;
+            --title-text: #1d1d1f;
+            --history-bg: #e5e5ea;
+            --history-active: #ffffff;
+            --msg-user-bg: #007aff;
+            --msg-assistant-bg: #f2f2f7;
+            --msg-border: none;
+            --msg-user-text: #ffffff;
+        }
+
+        body {
+            background-color: var(--bg-app);
+            font-family: var(--font-family);
+            color: var(--text-main);
+            margin: 0;
+            height: 100vh;
+            overflow: hidden;
+            font-size: var(--font-base); 
+        }
+
+        #root {
+            height: 100%;
+        }
+
+        .theme-container {
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            background-color: var(--bg-app);
+        }
+
+        /* Utility Color Classes */
+        .bg-app { background-color: var(--bg-app); }
+        .bg-panel { background-color: var(--bg-panel); }
+        .bg-inner { background-color: var(--bg-inner); }
+        .bg-header { background-color: var(--bg-header); }
+        .bg-msg-area { background-color: var(--bg-msg-area); }
+        .border-panel-dark { border-color: var(--border-dark); }
+        .text-muted { color: var(--text-muted); }
+
+        .outset {
+            border: var(--border-panel);
+            border-top-color: var(--border-light);
+            border-left-color: var(--border-light);
+            border-bottom-color: var(--border-darker);
+            border-right-color: var(--border-darker);
+            background: var(--bg-panel);
+            border-radius: var(--radius-panel);
+            box-shadow: var(--shadow-panel);
+        }
+
+        .inset {
+            border: var(--border-input);
+            border-top-color: var(--border-darker);
+            border-left-color: var(--border-darker);
+            border-bottom-color: var(--border-light);
+            border-right-color: var(--border-light);
+            background: var(--bg-inner);
+            border-radius: var(--radius-btn);
+        }
+
+        .win-button {
+            padding: 4px 12px;
+            cursor: pointer;
+            background: var(--bg-panel);
+            border: var(--border-panel);
+            border-top-color: var(--border-light);
+            border-left-color: var(--border-light);
+            border-bottom-color: var(--border-darker);
+            border-right-color: var(--border-darker);
+            border-radius: var(--radius-btn);
+            font-size: 13px;
+            box-shadow: var(--shadow-btn);
+            color: var(--text-main);
+        }
+
+        .win-button:active {
+            border-top-color: var(--border-darker);
+            border-left-color: var(--border-darker);
+            border-bottom-color: var(--border-light);
+            border-right-color: var(--border-light);
+            transform: scale(0.98);
+        }
+
+        .sidebar-title {
+            background: var(--title-bg);
+            color: var(--title-text);
+            padding: 6px 8px;
+            font-weight: bold;
+            font-size: 13px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-top-left-radius: calc(var(--radius-panel) - 2px);
+            border-top-right-radius: calc(var(--radius-panel) - 2px);
+        }
+
+        .history-strip {
+            display: flex;
+            align-items: flex-end;
+            overflow-x: auto;
+            overflow-y: hidden;
+            background: var(--bg-panel);
+            padding: 8px 4px 0 4px;
+            gap: 0;
+            border-bottom: 2px solid var(--border-darker);
+        }
+        
+        .history-strip::-webkit-scrollbar {
+            display: none;
+        }
+        .history-strip {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        [data-theme="mac"] .history-strip {
+            border-bottom: 1px solid var(--border-dark);
+            padding-top: 8px;
+            padding-left: 8px;
+            gap: 4px;
+        }
+
+        .history-tab {
+            flex: 1 1 200px;
+            max-width: 200px;
+            min-width: 60px;
+            padding: 6px 12px;
+            border: var(--border-panel);
+            border-top-color: var(--border-light);
+            border-left-color: var(--border-light);
+            border-right-color: var(--border-darker);
+            border-bottom: none;
+            background: var(--history-bg);
+            cursor: pointer;
+            font-size: 13px;
+            border-top-left-radius: var(--radius-panel);
+            border-top-right-radius: var(--radius-panel);
+            user-select: none;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            overflow: hidden;
+        }
+
+        .history-tab .tab-title {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            flex-grow: 1;
+        }
+
+        .history-tab.active .tab-title {
+            font-weight: bold;
+        }
+
+        .history-tab.active {
+            background: var(--history-active);
+            border-bottom: 2px solid var(--history-active);
+            margin-bottom: -2px;
+        }
+        [data-theme="mac"] .history-tab {
+            border-bottom: 1px solid var(--border-dark);
+        }
+        [data-theme="mac"] .history-tab.active {
+            border-bottom: 1px solid var(--bg-msg-area);
+            margin-bottom: -1px;
+            background: var(--bg-msg-area);
+        }
+
+        .agent-card {
+            padding: 8px;
+            margin-bottom: 6px;
+            border-bottom: 1px solid var(--border-dark);
+            position: relative;
+        }
+
+        .agent-card:hover .agent-actions {
+            display: flex;
+        }
+
+        .agent-actions {
+            display: none;
+            position: absolute;
+            right: 4px;
+            top: 4px;
+            gap: 2px;
+        }
+
+        .msg-bubble {
+            padding: 10px 14px;
+            max-width: 85%;
+            font-size: 15px;
+            line-height: 1.5;
+            border-radius: var(--radius-panel);
+        }
+
+        .msg-user {
+            background: var(--msg-user-bg);
+            color: var(--msg-user-text);
+            margin-left: auto;
+            border: var(--msg-border);
+        }
+
+        .msg-assistant {
+            background: var(--msg-assistant-bg);
+            margin-right: auto;
+            border: var(--msg-border);
+        }
+
+        input, textarea, select {
+            font-size: 14px !important;
+            padding: 4px 6px;
+            border: var(--border-input);
+            border-top-color: var(--border-darker);
+            border-left-color: var(--border-darker);
+            border-bottom-color: var(--border-light);
+            border-right-color: var(--border-light);
+            outline: none;
+            background: var(--bg-inner);
+            color: var(--text-main);
+            border-radius: var(--radius-btn);
+            pointer-events: auto;
+            user-select: text;
+            -webkit-user-select: text;
+        }
+
+        .source-panel {
+            background: var(--bg-inner);
+            border-bottom: 2px solid var(--border-darker);
+            max-height: 200px;
+            overflow-y: auto;
+            padding: 10px;
+        }
+        [data-theme="mac"] .source-panel {
+            border-bottom: 1px solid var(--border-dark);
+        }
+
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .vertical-text {
+            writing-mode: vertical-rl;
+            text-orientation: upright;
+            letter-spacing: 4px;
+            padding: 10px 0;
+        }
+        
+        /* Custom Red Dot Button */
+        .red-dot-btn {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background-color: #ff5f56;
+            border: 1px solid #e0443e;
+            cursor: pointer;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.2), 0 1px 2px rgba(0,0,0,0.2);
+        }
+        .red-dot-btn:active {
+            background-color: #e0443e;
+            box-shadow: inset 0 1px 2px rgba(0,0,0,0.2);
+        }
+        .red-dot-btn:hover::before {
+            content: "";
+            display: block;
+            width: 6px;
+            height: 6px;
+            background-color: rgba(0,0,0,0.5);
+            border-radius: 50%;
+        }
+
+        .composer-panel {
+            position: relative;
+            z-index: 5;
+            pointer-events: auto;
+        }
+
+        .process-panel {
+            margin-bottom: 10px;
+            padding: 8px 10px;
+            border: 1px solid var(--border-dark);
+            background: var(--bg-inner);
+            border-radius: var(--radius-btn);
+        }
+
+        .process-heading {
+            margin-bottom: 8px;
+            font-size: 11px;
+            font-weight: bold;
+            opacity: 0.68;
+            letter-spacing: 0.02em;
+        }
+
+        .checklist-panel {
+            margin-bottom: 10px;
+            padding: 8px 10px;
+            border: 1px solid var(--border-dark);
+            background: rgba(255,255,255,0.18);
+            border-radius: var(--radius-btn);
+        }
+
+        .checklist-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .checklist-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .checklist-status {
+            width: 14px;
+            height: 14px;
+            margin-top: 1px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            position: relative;
+            color: #2f7d32;
+            font-size: 11px;
+            font-weight: bold;
+        }
+
+        .checklist-status.pending {
+            border: 1px solid #7a7a7a;
+            border-radius: 50%;
+            color: transparent;
+        }
+
+        .checklist-status.running {
+            border: 2px solid #9fb7ef;
+            border-top-color: #0b61ff;
+            border-radius: 50%;
+            color: transparent;
+            animation: spin-ring 0.9s linear infinite;
+        }
+
+        .checklist-status.done::before {
+            content: '\2713';
+        }
+
+        .checklist-status.failed::before {
+            content: '\00d7';
+            color: #a94442;
+        }
+
+        .checklist-main {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .checklist-title-row {
+            display: flex;
+            align-items: baseline;
+            gap: 6px;
+        }
+
+        .checklist-title {
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .process-step {
+            position: relative;
+            padding-left: 16px;
+            margin-bottom: 10px;
+        }
+
+        .process-step:last-child {
+            margin-bottom: 0;
+        }
+
+        .process-step::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 6px;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #7a7a7a;
+            border: 1px solid var(--border-darker);
+        }
+
+        .process-step.running::before {
+            background: #0b61ff;
+            animation: pulse-dot 1.15s ease-in-out infinite;
+        }
+
+        .process-step.completed::before {
+            background: #2f7d32;
+        }
+
+        .process-step.failed::before {
+            background: #a94442;
+        }
+
+        .process-title-row {
+            display: flex;
+            gap: 8px;
+            align-items: baseline;
+            justify-content: space-between;
+        }
+
+        .process-title-main {
+            display: flex;
+            gap: 6px;
+            align-items: baseline;
+            min-width: 0;
+            flex: 1;
+        }
+
+        .process-elapsed {
+            min-width: 38px;
+            text-align: right;
+            font-size: 11px;
+            font-weight: bold;
+            opacity: 0.76;
+            flex-shrink: 0;
+        }
+
+        .process-title {
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .process-step-toggle {
+            width: 14px;
+            height: 14px;
+            padding: 0;
+            margin-right: 2px;
+            border: none;
+            background: transparent;
+            color: inherit;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            opacity: 0.72;
+            flex-shrink: 0;
+        }
+
+        .process-step-toggle:hover {
+            opacity: 1;
+        }
+
+        .step-result-panel {
+            margin-top: 6px;
+            margin-left: 18px;
+            padding: 6px 8px;
+            border: 1px solid var(--border-dark);
+            background: rgba(255,255,255,0.38);
+            border-radius: var(--radius-btn);
+            font-size: 12px;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+
+        .thought-snippet {
+            margin-top: 5px;
+            margin-left: 18px;
+            font-size: 11px;
+            opacity: 0.66;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            animation: fade-thought 4.8s ease forwards;
+        }
+
+        .streaming-placeholder {
+            font-style: italic;
+            opacity: 0.72;
+        }
+
+        .msg-copy-button {
+            padding: 1px 8px;
+            font-size: 11px;
+            line-height: 1.5;
+        }
+
+        .chevron-glyph {
+            font-size: 11px;
+            line-height: 1;
+            transform: translateY(-1px);
+        }
+
+        @keyframes pulse-dot {
+            0% { opacity: 0.35; transform: scale(0.95); }
+            50% { opacity: 1; transform: scale(1.18); }
+            100% { opacity: 0.35; transform: scale(0.95); }
+        }
+
+        @keyframes fade-thought {
+            0% { opacity: 0.72; }
+            70% { opacity: 0.64; }
+            100% { opacity: 0.18; }
+        }
+
+        @keyframes spin-ring {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .error-banner {
+            margin: 8px 12px 0 12px;
+            padding: 6px 10px;
+            border: 1px solid #a94442;
+            background: #f2dede;
+            color: #7a1f1a;
+            font-size: 12px;
+        }
+
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+        const DEFAULT_DEPARTMENT_AGENTS = [
+            { id: 'orc', name: '主席团', desc: '负责任务分发、结果汇总与最终输出', enabled: true, instructions: '负责理解用户问题，决定启用哪些部门，并整合最终结果。', isDefault: true, binding: 'auto' },
+            { id: 'dom', name: '学术部', desc: '负责服装专业知识与工艺判断', enabled: true, instructions: '负责面料、工艺、版型、尺码与专业可行性判断。', isDefault: true, binding: 'auto' },
+            { id: 'pln', name: '企划部', desc: '负责企划结构、SKU 与波段规划', enabled: true, instructions: '负责企划结构、系列组合、SKU 矩阵与开发排期。', isDefault: true, binding: 'auto' },
+            { id: 'ana', name: '经营部', desc: '负责价格、成本与经营分析', enabled: true, instructions: '负责价格带、成本、毛利、竞品与经营测算。', isDefault: true, binding: 'auto' },
+            { id: 'crt', name: '质检部', desc: '负责风控、挑错与复核', enabled: true, instructions: '负责检查逻辑冲突、风险点、执行可行性并提出修正意见。', isDefault: true, binding: 'auto' },
+            { id: 'cpy', name: '宣传部', desc: '负责卖点翻译与传播表达', enabled: true, instructions: '负责卖点提炼、消费者表达与传播文案输出。', isDefault: true, binding: 'auto' }
+        ];
+
+        function normalizeDepartmentAgents(existingAgents) {
+            const incoming = Array.isArray(existingAgents) ? existingAgents : [];
+            const incomingMap = new Map(incoming.map(agent => [agent.id, agent]));
+
+            return DEFAULT_DEPARTMENT_AGENTS.map((agent) => {
+                const existing = incomingMap.get(agent.id);
+                return existing ? { ...agent, ...existing } : agent;
+            });
+        }
+
+        const ROUTE_LABELS = {
+            direct_answer: '\u76f4\u63a5\u56de\u7b54',
+            quality_risk: '\u8d28\u91cf\u4e0e\u5ba2\u8bc9\u98ce\u9669',
+            planning: '\u4f01\u5212\u89c4\u5212',
+            finance: '\u7ecf\u8425\u6d4b\u7b97',
+            copywriting: '\u8868\u8fbe\u4e0e\u6587\u6848',
+            integrated_review: '\u7efc\u5408\u4f1a\u5ba1',
+            mixed: '\u6df7\u5408\u4efb\u52a1',
+            default_quality_fallback: '\u9ed8\u8ba4\u98ce\u9669\u5206\u6790',
+        };
+
+        function truncateInline(value, limit = 120) {
+            const text = String(value ?? '').replace(/\s+/g, ' ').trim();
+            if (text.length <= limit) return text;
+            return text.slice(0, Math.max(0, limit - 3)).trimEnd() + '...';
+        }
+
+        function formatElapsedMs(value) {
+            const ms = Number(value);
+            if (!Number.isFinite(ms) || ms < 0) return '';
+            const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+            return minutes > 0 ? `${minutes}m${String(seconds).padStart(2, '0')}s` : `${seconds}s`;
+        }
+
+        function upsertRunStep(steps, event) {
+            const next = Array.isArray(steps) ? [...steps] : [];
+            const incomingElapsed = Number(event.elapsed_ms ?? event.elapsedMs ?? 0);
+            const stepId = event.step_id || event.stepId || `step-${Date.now()}`;
+            const index = next.findIndex((item) => item.stepId === stepId);
+            const baseStartedAtMs = Date.now() - Math.max(0, incomingElapsed);
+            const normalized = {
+                stepId,
+                phase: event.phase || '',
+                agentId: event.agent_id || event.agentId || '',
+                status: event.status || 'running',
+                title: event.title || '',
+                summary: event.summary || '',
+                elapsedMs: incomingElapsed,
+                startedAtMs: index >= 0 ? (next[index].startedAtMs || baseStartedAtMs) : baseStartedAtMs,
+            };
+
+            if (index >= 0) {
+                next[index] = { ...next[index], ...normalized };
+            } else {
+                for (let i = 0; i < next.length; i += 1) {
+                    if (next[i]?.status === 'running') {
+                        next[i] = { ...next[i], status: 'completed', elapsedMs: incomingElapsed };
+                    }
+                }
+                next.push(normalized);
+            }
+            return next;
+        }
+
+        function finalizeRunSteps(steps) {
+            return (Array.isArray(steps) ? steps : []).map((step) => {
+                if (step?.status !== 'running') return step;
+                const startedAtMs = Number(step.startedAtMs || Date.now());
+                return {
+                    ...step,
+                    status: 'completed',
+                    elapsedMs: Math.max(step.elapsedMs || 0, Date.now() - startedAtMs),
+                };
+            });
+        }
+
+        function buildPendingAssistantMessage(id) {
+            return {
+                id,
+                role: 'assistant',
+                content: '',
+                createdAt: new Date().toISOString(),
+                isStreaming: true,
+                runSteps: [],
+                checklist: [],
+                departmentResults: null,
+                workflowArtifact: null,
+            };
+        }
+
+        const App = () => {
+            const hasHydrated = useRef(false);
+            const inputRef = useRef(null);
+            const saveTimerRef = useRef(null);
+            const errorTimerRef = useRef(null);
+            const uploadInputRef = useRef(null);
+            const modelFetchTimerRef = useRef({});
+            const streamBindingsRef = useRef({});
+            const streamEventHandlerRef = useRef(null);
+            const messagesViewportRef = useRef(null);
+
+            const [theme, setTheme] = useState('win98');
+
+            const [sessions, setSessions] = useState([
+                {
+                    id: '1',
+                    title: '2024夏季面料企划',
+                    updatedAt: '14:20',
+                    summary: '亚麻混纺评估',
+                    memorySummary: '当前重点：面料耐磨性与色牢度。',
+                    uploads: [{ id: 'f1', name: '夏装报价表.xlsx', size: '24KB' }],
+                    messages: []
+                }
+            ]);
+
+            const [activeId, setActiveId] = useState('1');
+            const [agents, setAgents] = useState(DEFAULT_DEPARTMENT_AGENTS);
+
+            const [profiles, setProfiles] = useState([
+                { id: 'p1', name: '个人配置1', provider: 'OpenAI', baseUrl: '', apiKey: '', model: 'gpt-4o' }
+            ]);
+            const [providerOptions, setProviderOptions] = useState(['OpenAI', 'Anthropic', 'Gemini', 'OpenRouter', 'Custom']);
+            const [profileModelState, setProfileModelState] = useState({});
+
+            const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+            const [isAgentOpen, setIsAgentOpen] = useState(false);
+            const [isSourceOpen, setIsSourceOpen] = useState(false);
+            const [editingAgent, setEditingAgent] = useState(null);
+            const [renamingSessionId, setRenamingSessionId] = useState(null);
+            const [renameInput, setRenameInput] = useState('');
+            const [input, setInput] = useState('');
+            const [draggedTabId, setDraggedTabId] = useState(null);
+            const [runtimeError, setRuntimeError] = useState('');
+            const [confirmState, setConfirmState] = useState({ open: false, kind: null, id: null, message: '' });
+            const [clockTick, setClockTick] = useState(Date.now());
+            const [expandedResults, setExpandedResults] = useState({});
+
+            useEffect(() => {
+                const handleWindowError = (event) => {
+                    const message = event?.error?.message || event?.message || 'Unknown renderer error';
+                    setRuntimeError(message);
+                };
+
+                window.addEventListener('error', handleWindowError);
+                return () => window.removeEventListener('error', handleWindowError);
+            }, []);
+
+            useEffect(() => {
+                if (!runtimeError) return;
+
+                clearTimeout(errorTimerRef.current);
+                errorTimerRef.current = setTimeout(() => {
+                    setRuntimeError('');
+                }, 2600);
+
+                return () => clearTimeout(errorTimerRef.current);
+            }, [runtimeError]);
+
+            useEffect(() => {
+                if (!window.boxccAPI?.listProviders) return;
+
+                window.boxccAPI.listProviders().then((list) => {
+                    if (Array.isArray(list) && list.length) {
+                        setProviderOptions(list);
+                    }
+                }).catch((error) => {
+                    console.error('Failed to load provider list', error);
+                });
+            }, []);
+
+            useEffect(() => {
+                if (!window.boxccAPI?.loadState) return;
+
+                window.boxccAPI.loadState().then((state) => {
+                    if (state?.sessions?.length) {
+                        setSessions(state.sessions);
+                        setActiveId(state.sessions[0].id);
+                    }
+                    if (state?.agents?.length) {
+                        setAgents(normalizeDepartmentAgents(state.agents));
+                    }
+                    if (state?.profiles?.length) {
+                        setProfiles(state.profiles);
+                    }
+                    hasHydrated.current = true;
+                }).catch((error) => {
+                    console.error('Failed to load app state', error);
+                    setAgents(normalizeDepartmentAgents(DEFAULT_DEPARTMENT_AGENTS));
+                    hasHydrated.current = true;
+                });
+            }, []);
+
+            useEffect(() => {
+                if (!hasHydrated.current || !window.boxccAPI?.saveState) return;
+                clearTimeout(saveTimerRef.current);
+                saveTimerRef.current = setTimeout(() => {
+                    window.boxccAPI.saveState({ sessions, agents, profiles }).catch((error) => {
+                        console.error('Failed to save app state', error);
+                    });
+                }, 120);
+
+                return () => clearTimeout(saveTimerRef.current);
+            }, [sessions, agents, profiles]);
+
+            useEffect(() => {
+                if (!hasHydrated.current || !window.boxccAPI?.listModelsForProfile) return;
+
+                profiles.forEach((profile) => {
+                    const provider = String(profile?.provider || '').trim();
+                    const baseUrl = String(profile?.baseUrl || '').trim();
+                    const apiKey = String(profile?.apiKey || '').trim();
+                    const requestKey = `${provider}||${baseUrl}||${apiKey}`;
+                    const currentModelState = profileModelState[profile.id];
+
+                    if (!apiKey) {
+                        clearTimeout(modelFetchTimerRef.current[profile.id]);
+                        if (currentModelState?.options?.length || currentModelState?.error || currentModelState?.requestKey !== requestKey) {
+                            setProfileModelState((prev) => ({
+                                ...prev,
+                                [profile.id]: { options: [], loading: false, error: '', requestKey },
+                            }));
+                        }
+                        return;
+                    }
+
+                    if (currentModelState?.loading || currentModelState?.requestKey === requestKey) {
+                        return;
+                    }
+
+                    clearTimeout(modelFetchTimerRef.current[profile.id]);
+                    modelFetchTimerRef.current[profile.id] = setTimeout(() => {
+                        refreshModelsForProfile(profile);
+                    }, 700);
+                });
+
+                return () => {
+                    Object.values(modelFetchTimerRef.current).forEach((timer) => clearTimeout(timer));
+                };
+            }, [profiles, profileModelState]);
+
+            useEffect(() => {
+                const normalized = normalizeDepartmentAgents(agents);
+                const changed = JSON.stringify(normalized) !== JSON.stringify(agents);
+                if (changed) {
+                    setAgents(normalized);
+                }
+            }, []);
+
+            useEffect(() => {
+                requestAnimationFrame(() => inputRef.current?.focus());
+            }, [activeId, theme]);
+
+            useEffect(() => {
+                const handleWindowFocus = () => restoreInputFocus();
+                window.addEventListener('focus', handleWindowFocus);
+                return () => window.removeEventListener('focus', handleWindowFocus);
+            }, []);
+
+            useEffect(() => {
+                const timer = setInterval(() => setClockTick(Date.now()), 1000);
+                return () => clearInterval(timer);
+            }, []);
+
+            useEffect(() => {
+                if (!window.boxccAPI?.onChatStreamEvent) return undefined;
+                const unsubscribe = window.boxccAPI.onChatStreamEvent((payload) => {
+                    streamEventHandlerRef.current?.(payload);
+                });
+                return () => {
+                    if (typeof unsubscribe === 'function') unsubscribe();
+                };
+            }, []);
+
+            const current = sessions.find(s => s.id === activeId) || sessions[0] || { messages: [], uploads: [], title: 'None' };
+
+            useEffect(() => {
+                if (!messagesViewportRef.current) return;
+                messagesViewportRef.current.scrollTop = messagesViewportRef.current.scrollHeight;
+            }, [current.messages]);
+
+            const updateProfile = (profileId, patch) => {
+                setProfiles((prev) => prev.map((profile) => (
+                    profile.id === profileId ? { ...profile, ...patch } : profile
+                )));
+            };
+
+            const getProfileModelOptions = (profileId, currentModel) => {
+                const loaded = Array.isArray(profileModelState[profileId]?.options)
+                    ? profileModelState[profileId].options
+                    : [];
+                const merged = currentModel && !loaded.includes(currentModel)
+                    ? [currentModel, ...loaded]
+                    : loaded;
+                return Array.from(new Set(merged.filter(Boolean)));
+            };
+
+            const refreshModelsForProfile = async (profile) => {
+                if (!profile?.id || !window.boxccAPI?.listModelsForProfile) return;
+
+                const provider = String(profile.provider || '').trim();
+                const baseUrl = String(profile.baseUrl || '').trim();
+                const apiKey = String(profile.apiKey || '').trim();
+                const requestKey = `${provider}||${baseUrl}||${apiKey}`;
+
+                if (!apiKey) {
+                    setProfileModelState((prev) => ({
+                        ...prev,
+                        [profile.id]: { options: [], loading: false, error: '', requestKey },
+                    }));
+                    return;
+                }
+
+                setProfileModelState((prev) => ({
+                    ...prev,
+                    [profile.id]: {
+                        options: Array.isArray(prev[profile.id]?.options) ? prev[profile.id].options : [],
+                        loading: true,
+                        error: '',
+                        requestKey,
+                    },
+                }));
+
+                try {
+                    const result = await window.boxccAPI.listModelsForProfile({
+                        provider,
+                        baseUrl,
+                        apiKey,
+                        name: profile.name,
+                    });
+                    const nextOptions = Array.isArray(result?.models) ? result.models : [];
+
+                    setProfileModelState((prev) => ({
+                        ...prev,
+                        [profile.id]: {
+                            options: nextOptions,
+                            loading: false,
+                            error: '',
+                            requestKey,
+                        },
+                    }));
+
+                    setProfiles((prev) => prev.map((item) => {
+                        if (item.id !== profile.id) return item;
+                        const nextModel = nextOptions.includes(item.model) ? item.model : (nextOptions[0] || '');
+                        return { ...item, model: nextModel };
+                    }));
+                } catch (error) {
+                    setProfileModelState((prev) => ({
+                        ...prev,
+                        [profile.id]: {
+                            options: [],
+                            loading: false,
+                            error: error?.message || 'Failed to load models',
+                            requestKey,
+                        },
+                    }));
+                }
+            };
+
+            const handleDragStart = (e, id) => {
+                setDraggedTabId(id);
+                e.dataTransfer.effectAllowed = "move";
+                // Required for Firefox
+                e.dataTransfer.setData("text/plain", id);
+            };
+
+            const handleDragOver = (e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = "move";
+            };
+
+            const handleDrop = (e, targetId) => {
+                e.preventDefault();
+                if (!draggedTabId || draggedTabId === targetId) return;
+
+                const newSessions = [...sessions];
+                const draggedIndex = newSessions.findIndex(s => s.id === draggedTabId);
+                const targetIndex = newSessions.findIndex(s => s.id === targetId);
+
+                if (draggedIndex < 0 || targetIndex < 0) return;
+
+                const [draggedItem] = newSessions.splice(draggedIndex, 1);
+                newSessions.splice(targetIndex, 0, draggedItem);
+
+                setSessions(newSessions);
+                setDraggedTabId(null);
+            };
+            const handleAddAgent = () => {
+                setRuntimeError('当前版本固定为六部门架构，暂不新增自定义 Agent。');
+            };
+
+            const handleSaveAgent = (updated) => {
+                const newAgents = agents.map(a => a.id === updated.id ? updated : a);
+                setAgents(newAgents);
+                setEditingAgent(null);
+            };
+
+            const restoreInputFocus = () => {
+                requestAnimationFrame(() => {
+                    window.focus();
+                    document.activeElement?.blur?.();
+                    inputRef.current?.focus();
+                });
+            };
+
+            const openConfirm = (kind, id, message) => {
+                setConfirmState({ open: true, kind, id, message });
+            };
+
+            const closeConfirm = () => {
+                setConfirmState({ open: false, kind: null, id: null, message: '' });
+                restoreInputFocus();
+            };
+
+            const executeConfirm = () => {
+                if (confirmState.kind === 'delete-agent') {
+                    setAgents(prev => prev.filter(a => a.id !== confirmState.id));
+                } else if (confirmState.kind === 'delete-session') {
+                    const newSessions = sessions.filter(s => s.id !== confirmState.id);
+                    setSessions(newSessions);
+                    if (activeId === confirmState.id && newSessions.length > 0) setActiveId(newSessions[0].id);
+                    else if (newSessions.length === 0) handleNewSession();
+                } else if (confirmState.kind === 'delete-profile') {
+                    setProfiles(prev => prev.filter(x => x.id !== confirmState.id));
+                } else if (confirmState.kind === 'remove-upload') {
+                    setSessions(prev => prev.map(s => s.id === activeId ? {
+                        ...s,
+                        uploads: (s.uploads || []).filter(f => f.id !== confirmState.id),
+                    } : s));
+                }
+
+                setConfirmState({ open: false, kind: null, id: null, message: '' });
+                restoreInputFocus();
+            };
+
+            const handleDeleteAgent = (id) => {
+                openConfirm('delete-agent', id, '确定要删除这个 Agent 吗？');
+            };
+
+            const handleDeleteSession = (e, id) => {
+                e.stopPropagation();
+                openConfirm('delete-session', id, '确定要删除这段对话记录吗？');
+            };
+
+            const handleRenameStart = () => {
+                if(!current || !current.id) return;
+                setRenameInput(current.title);
+                setRenamingSessionId(current.id);
+            };
+
+            const handleRenameSave = () => {
+                if(renameInput.trim()) {
+                    setSessions(sessions.map(s => s.id === renamingSessionId ? {...s, title: renameInput.trim()} : s));
+                }
+                setRenamingSessionId(null);
+            };
+
+            const handleDeleteProfile = (id) => {
+                openConfirm('delete-profile', id, '确定要删除这个 API 配置吗？');
+            };
+
+            const requestDeleteAgent = (id) => {
+                openConfirm('delete-agent', id, '确定要删除这个 Agent 吗？');
+            };
+
+            const requestDeleteSession = (e, id) => {
+                e.stopPropagation();
+                openConfirm('delete-session', id, '确定要删除这段对话记录吗？');
+            };
+
+            const requestDeleteProfile = (id) => {
+                openConfirm('delete-profile', id, '确定要删除这个 API 配置吗？');
+            };
+
+            const requestRemoveUpload = (id) => {
+                openConfirm('remove-upload', id, '确定要移除这个文件吗？');
+            };
+
+            const handleAddProfile = () => {
+                setProfiles([...profiles, { id: Date.now().toString(), name: '新配置', provider: 'OpenAI', baseUrl: '', apiKey: '', model: '' }]);
+            };
+
+            const handleUploadClick = () => {
+                uploadInputRef.current?.click();
+            };
+
+            const handleUploadFiles = (event) => {
+                const fileList = Array.from(event.target.files || []);
+                if (!fileList.length) {
+                    restoreInputFocus();
+                    return;
+                }
+
+                const nextUploads = fileList.map((file) => ({
+                    id: `${Date.now()}-${file.name}`,
+                    name: file.name,
+                    size: file.size ? `${Math.max(1, Math.round(file.size / 1024))}KB` : '',
+                    type: file.type || '',
+                }));
+
+                setSessions((prev) => prev.map((session) => (
+                    session.id === activeId
+                        ? { ...session, uploads: [...(session.uploads || []), ...nextUploads] }
+                        : session
+                )));
+
+                event.target.value = '';
+                restoreInputFocus();
+            };
+
+            const handleNewSession = () => {
+                const nid = Date.now().toString();
+                const ns = { id: nid, title: '新会话', updatedAt: '现在', messages: [], uploads: [], memorySummary: 'Waiting...', agentContexts: {} };
+                setSessions((prev) => [ns, ...prev]);
+                setActiveId(nid);
+            };
+
+            const updateSessionMessage = (sessionId, messageId, updater) => {
+                setSessions((prev) => prev.map((session) => {
+                    if (session.id !== sessionId) return session;
+                    return {
+                        ...session,
+                        messages: (session.messages || []).map((message) => (
+                            message.id === messageId ? updater(message, session) : message
+                        )),
+                    };
+                }));
+            };
+
+            const copyTextToClipboard = async (value) => {
+                const text = String(value ?? '');
+                if (!text) return;
+                try {
+                    if (window.boxccAPI?.copyText) {
+                        await window.boxccAPI.copyText(text);
+                    } else if (navigator.clipboard?.writeText) {
+                        await navigator.clipboard.writeText(text);
+                    }
+                } catch (error) {
+                    console.error('Failed to copy text', error);
+                    setRuntimeError('复制失败');
+                }
+            };
+
+            const applyStreamEvent = (payload) => {
+                const binding = streamBindingsRef.current[payload?.requestId];
+                if (!binding) return;
+                const { sessionId, messageId } = binding;
+
+                if (payload.type === 'run_step') {
+                    updateSessionMessage(sessionId, messageId, (message) => ({
+                        ...message,
+                        isStreaming: true,
+                        runSteps: upsertRunStep(message.runSteps, payload),
+                    }));
+                    return;
+                }
+
+                if (payload.type === 'checklist_sync') {
+                    updateSessionMessage(sessionId, messageId, (message) => ({
+                        ...message,
+                        checklist: Array.isArray(payload.checklist) ? payload.checklist : (message.checklist || []),
+                    }));
+                    return;
+                }
+
+                if (payload.type === 'answer_delta') {
+                    updateSessionMessage(sessionId, messageId, (message) => ({
+                        ...message,
+                        isStreaming: true,
+                        content: `${message.content || ''}${payload.delta || ''}`,
+                    }));
+                    return;
+                }
+
+                if (payload.type === 'done') {
+                    const departmentResults = Array.isArray(payload.department_results) ? payload.department_results : null;
+                    const workflowArtifact = payload.workflow_artifact || null;
+                    setSessions((prev) => prev.map((session) => {
+                        if (session.id !== sessionId) return session;
+                        const nextAgentContexts = departmentResults
+                            ? Object.fromEntries(departmentResults.map((item) => [item.id, item]))
+                            : (session.agentContexts || {});
+                        return {
+                            ...session,
+                            title: payload.title || session.title,
+                            agentContexts: nextAgentContexts,
+                            messages: (session.messages || []).map((message) => (
+                                message.id === messageId
+                                    ? {
+                                        ...message,
+                                        ...(payload.message || {}),
+                                        createdAt: payload?.message?.createdAt || message.createdAt,
+                                        content: typeof payload?.message?.content === 'string' ? payload.message.content : (message.content || ''),
+                                        isStreaming: false,
+                                        runSteps: finalizeRunSteps(message.runSteps),
+                                        checklist: Array.isArray(payload.checklist) ? payload.checklist : (message.checklist || []),
+                                        departmentResults,
+                                        workflowArtifact,
+                                    }
+                                    : message
+                            )),
+                        };
+                    }));
+                    delete streamBindingsRef.current[payload.requestId];
+                    return;
+                }
+
+                if (payload.type === 'error') {
+                    updateSessionMessage(sessionId, messageId, (message) => ({
+                        ...message,
+                        isStreaming: false,
+                        runSteps: finalizeRunSteps(message.runSteps),
+                        content: `Error: ${payload.error || 'Unknown error'}`,
+                    }));
+                    delete streamBindingsRef.current[payload.requestId];
+                }
+            };
+
+            streamEventHandlerRef.current = applyStreamEvent;
+
+            const getDepartmentResults = (message) => {
+                const workflowArtifact = message.workflowArtifact || null;
+                return Array.isArray(message.departmentResults)
+                    ? message.departmentResults
+                    : (Array.isArray(workflowArtifact?.department_results) ? workflowArtifact.department_results : []);
+            };
+
+            const getDepartmentResultMap = (message) => {
+                const entries = getDepartmentResults(message);
+                return Object.fromEntries(entries.map((item) => [item.id, item]));
+            };
+
+
+            const renderChecklistPanel = (message) => {
+                const checklist = Array.isArray(message.checklist) ? message.checklist : [];
+                if (!checklist.length) return null;
+                const resultMap = getDepartmentResultMap(message);
+                return (
+                    <div className="checklist-panel">
+                        <div className="process-heading">{'\u6267\u884c\u6e05\u5355'}</div>
+                        {checklist.map((item) => {
+                            const resultItem = item.owner ? resultMap[item.owner] : null;
+                            const resultKey = `${message.id}:check:${item.item_id}`;
+                            return (
+                                <div key={item.item_id} className="checklist-item">
+                                    <span className={`checklist-status ${item.status || 'pending'}`} aria-hidden="true" />
+                                    <div className="checklist-main">
+                                        <div className="checklist-title-row">
+                                            {resultItem && (resultItem.content || resultItem.error) && (
+                                                <button
+                                                    className="process-step-toggle"
+                                                    title={"\u67e5\u770b\u8be5\u90e8\u95e8\u7ed3\u679c"}
+                                                    onClick={() => setExpandedResults((prev) => ({ ...prev, [resultKey]: !prev[resultKey] }))}
+                                                >
+                                                    <span className="chevron-glyph">{expandedResults[resultKey] ? '▾' : '▸'}</span>
+                                                </button>
+                                            )}
+                                            <span className="checklist-title">{item.title}</span>
+                                        </div>
+                                        {resultItem && expandedResults[resultKey] && (
+                                            <div className="step-result-panel">{resultItem.content || resultItem.error || '暂无结果'}</div>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                );
+            };
+
+            const handleSend = async () => {
+                const message = input.trim();
+                if (!message) return;
+
+                const sessionId = activeId;
+                const activeProfile = profiles[0];
+                const runtimeModel = activeProfile?.apiKey ? {
+                    provider: activeProfile.provider,
+                    model_name: activeProfile.model || '',
+                    api_key: activeProfile.apiKey,
+                    base_url: activeProfile.baseUrl || '',
+                } : null;
+                const userMsg = { id: `user-${Date.now()}`, role: 'user', content: message, createdAt: new Date().toISOString() };
+                const placeholderId = `assistant-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+                const pendingAssistant = buildPendingAssistantMessage(placeholderId);
+
+                setInput('');
+
+                setSessions((prev) => prev.map((session) => (
+                    session.id === sessionId
+                        ? { ...session, messages: [...(session.messages || []), userMsg, pendingAssistant] }
+                        : session
+                )));
+
+                try {
+                    if (window.boxccAPI?.startChatStream) {
+                        const streamResult = await window.boxccAPI.startChatStream({
+                            sessionId,
+                            message,
+                            modelName: activeProfile?.model || null,
+                            runtimeModel,
+                        });
+
+                        if (!streamResult?.ok) {
+                            updateSessionMessage(sessionId, placeholderId, (msg) => ({
+                                ...msg,
+                                isStreaming: false,
+                                content: `Error: ${streamResult?.error || 'Unknown error'}`,
+                            }));
+                        } else {
+                            streamBindingsRef.current[streamResult.requestId] = { sessionId, messageId: placeholderId };
+                        }
+                    } else if (window.boxccAPI?.sendChat) {
+                        const result = await window.boxccAPI.sendChat({
+                            sessionId,
+                            message,
+                            modelName: activeProfile?.model || null,
+                            runtimeModel,
+                        });
+
+                        if (result?.ok) {
+                            updateSessionMessage(sessionId, placeholderId, (msg) => ({
+                                ...msg,
+                                ...(result.assistantMessage || {}),
+                                isStreaming: false,
+                                departmentResults: result.department_results || null,
+                                workflowArtifact: result.workflow_artifact || null,
+                            }));
+                            setSessions((prev) => prev.map((session) => {
+                                if (session.id !== sessionId) return session;
+                                return {
+                                    ...session,
+                                    title: result.title || session.title,
+                                    agentContexts: Array.isArray(result.department_results)
+                                        ? Object.fromEntries(result.department_results.map((item) => [item.id, item]))
+                                        : (session.agentContexts || {}),
+                                };
+                            }));
+                        } else {
+                            updateSessionMessage(sessionId, placeholderId, (msg) => ({
+                                ...msg,
+                                isStreaming: false,
+                                content: `Error: ${result?.error || 'Unknown error'}`,
+                            }));
+                        }
+                    } else {
+                        updateSessionMessage(sessionId, placeholderId, (msg) => ({
+                            ...msg,
+                            isStreaming: false,
+                            content: '\u5f53\u524d\u73af\u5883\u4e0d\u652f\u6301\u804a\u5929\u8bf7\u6c42\u3002',
+                        }));
+                    }
+                } catch (error) {
+                    console.error('Failed to send chat', error);
+                    updateSessionMessage(sessionId, placeholderId, (msg) => ({
+                        ...msg,
+                        isStreaming: false,
+                        content: `Error: ${error?.message || 'Failed to send chat'}`,
+                    }));
+                    setRuntimeError(error?.message || 'Failed to send chat');
+                } finally {
+                    requestAnimationFrame(() => inputRef.current?.focus());
+                }
+            };
+
+
+            const focusComposer = () => {
+                requestAnimationFrame(() => inputRef.current?.focus());
+            };
+
+            const formatDisplayTime = (value) => {
+                if (!value) return '';
+                if (typeof value !== 'string') {
+                    return String(value);
+                }
+                if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(value)) {
+                    return value;
+                }
+                const parsed = new Date(value);
+                if (Number.isNaN(parsed.getTime())) {
+                    return value;
+                }
+                return parsed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+            };
+
+            const isAnyRightOpen = isSettingsOpen || isAgentOpen;
+
+
+            return (
+                <div className="theme-container" data-theme={theme}>
+                    {/* Top Menu Bar */}
+                    <div className="outset h-8 flex items-center px-3 justify-end text-xs gap-4" style={{ borderRadius: 0, borderTop: 0, borderLeft: 0, borderRight: 0, borderBottom: 0 }}>
+                        <button 
+                            className="red-dot-btn"
+                            title="切换系统风格"
+                            onClick={() => setTheme(theme === 'win98' ? 'mac' : 'win98')}
+                        />
+                        <div className="flex items-center opacity-80">
+                            <span className="bg-panel px-2 py-0.5" style={{border: 'var(--border-panel)'}}>CPU: 1.2%</span>
+                        </div>
+                    </div>
+
+                    <div className="flex flex-1 overflow-hidden p-2 gap-2 bg-app">
+                        
+                        {/* Main Dialogue Zone */}
+                        <div className="outset flex-1 flex flex-col overflow-hidden relative" style={{borderTop: 'none'}}>
+                            {/* History Bar */}
+                            <div className="history-strip">
+                                {sessions.map(s => (
+                                    <div 
+                                        key={s.id} 
+                                        draggable
+                                        onDragStart={(e) => handleDragStart(e, s.id)}
+                                        onDragOver={handleDragOver}
+                                        onDrop={(e) => handleDrop(e, s.id)}
+                                        className={`history-tab flex items-center justify-between gap-2 ${activeId === s.id ? 'active' : ''}`}
+                                        onClick={() => setActiveId(s.id)}
+                                    >
+                                        <span 
+                                            className="tab-title"
+                                            onDoubleClick={(e) => { e.stopPropagation(); if(activeId === s.id) handleRenameStart(); }}
+                                            style={{
+                                                cursor: activeId === s.id ? 'text' : 'pointer',
+                                                whiteSpace: 'nowrap',
+                                                overflow: 'hidden',
+                                                textOverflow: 'ellipsis',
+                                                flexGrow: 1,
+                                                fontWeight: activeId === s.id ? 'bold' : 'normal'
+                                            }}
+                                        >
+                                            {s.title}
+                                        </span>
+                                        <button 
+                                            className="text-red-700 hover:font-bold text-[14px] ml-1 px-1 leading-none flex-shrink-0"
+                                            title="删除会话"
+                                            onClick={(e) => requestDeleteSession(e, s.id)}
+                                        >
+                                            ×
+                                        </button>
+                                    </div>
+                                ))}
+                                <button 
+                                    className="px-3 font-bold text-xl hover:text-blue-800" 
+                                    style={{background: 'transparent', border: 'none', cursor: 'pointer', outline: 'none', marginBottom: '4px'}}
+                                    title="新建会话" 
+                                    onClick={handleNewSession}
+                                >
+                                    +
+                                </button>
+                            </div>
+
+                            {/* Session Header */}
+                            <div className="p-3 bg-header border-b border-panel-dark flex justify-end items-center">
+                                <button 
+                                    className={`win-button ${isSourceOpen ? 'active' : ''}`} 
+                                    onClick={() => setIsSourceOpen(!isSourceOpen)}
+                                >
+                                    资料库 ({current.uploads?.length || 0})
+                                </button>
+                            </div>
+                            {runtimeError && (
+                                <div className="error-banner">
+                                    前端错误: {runtimeError}
+                                </div>
+                            )}
+
+                            {/* Source Panel */}
+                            {isSourceOpen && (
+                                <div className="source-panel outset mx-2 mt-1">
+                                    <input
+                                        ref={uploadInputRef}
+                                        type="file"
+                                        multiple
+                                        style={{ display: 'none' }}
+                                        onChange={handleUploadFiles}
+                                    />
+                                    <div className="font-bold border-b border-panel-dark mb-2 flex justify-between pb-1" onClick={handleUploadClick}>
+                                        <span>已上传文件</span>
+                                        <button className="text-xs underline" onClick={restoreInputFocus}>+ 上传新资料</button>
+                                    </div>
+                                    <div className="grid grid-cols-3 gap-2">
+                                        {(current.uploads || []).map(f => (
+                                            <div key={f.id} className="inset p-2 text-xs flex justify-between">
+                                                <span>文件 {f.name}</span>
+                                                <button className="text-red-600 font-bold" onClick={() => requestRemoveUpload(f.id)}>×</button>
+                                            </div>
+                                        ))}
+                                        {current.uploads?.length === 0 && <div className="text-muted text-xs italic">暂无文件</div>}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Messages */}
+                            <div ref={messagesViewportRef} className="flex-1 overflow-y-auto p-6 space-y-4 bg-msg-area">
+                                {(current.messages || []).map(m => (
+                                    <div key={m.id} className={`msg-bubble ${m.role === 'user' ? 'msg-user' : 'msg-assistant'}`}>
+                                        <div className="flex items-center justify-between gap-2 mb-1">
+                                            <div
+                                                className="text-[10px] font-bold opacity-60"
+                                                style={{color: theme === 'mac' && m.role === 'user' ? '#cce5ff' : 'inherit'}}
+                                            >
+                                                {m.role.toUpperCase()} @ {formatDisplayTime(m.createdAt)}
+                                            </div>
+                                            {m.role === 'assistant' && (
+                                                <div className="flex items-center">
+                                                    <button
+                                                        className="win-button msg-copy-button"
+                                                        title={"\u590d\u5236\u56de\u7b54"}
+                                                        onClick={() => copyTextToClipboard(m.content || '')}
+                                                    >
+                                                        {"\u590d\u5236"}
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {m.role === 'assistant' && renderChecklistPanel(m)}
+                                        {m.role === 'assistant' && m.isStreaming && Array.isArray(m.runSteps) && m.runSteps.length > 0 && (() => {
+                                            const resultMap = getDepartmentResultMap(m);
+                                            const renderSteps = () => m.runSteps.map((step) => {
+                                                const resultItem = step.agentId ? resultMap[step.agentId] : null;
+                                                const resultKey = `${m.id}:${step.agentId || step.stepId}`;
+                                                const resolvedStatus = step.status || 'running';
+                                                const displayElapsed = Math.max(step.elapsedMs || 0, clockTick - (step.startedAtMs || clockTick));
+                                                const showThoughtSnippet = resolvedStatus === 'running'
+                                                    && step.summary
+                                                    && (clockTick - (step.startedAtMs || clockTick)) < 4800;
+                                                return (
+                                                    <div key={step.stepId} className={`process-step ${resolvedStatus}`}>
+                                                        <div className="process-title-row">
+                                                            <div className="process-title-main">
+                                                                {resultItem && (resultItem.content || resultItem.error) && (
+                                                                    <button
+                                                                        className="process-step-toggle"
+                                                                        title={"\u67e5\u770b\u8be5\u90e8\u95e8\u7ed3\u679c"}
+                                                                        onClick={() => setExpandedResults((prev) => ({ ...prev, [resultKey]: !prev[resultKey] }))}
+                                                                    >
+                                                                        <span className="chevron-glyph">{expandedResults[resultKey] ? '▾' : '▸'}</span>
+                                                                    </button>
+                                                                )}
+                                                                <span className="process-title">{step.title}</span>
+                                                            </div>
+                                                            {resolvedStatus === 'running' && (
+                                                                <span className="process-elapsed">{formatElapsedMs(displayElapsed)}</span>
+                                                            )}
+                                                        </div>
+                                                        {showThoughtSnippet && (
+                                                            <div className="thought-snippet">{truncateInline(step.summary, 72)}</div>
+                                                        )}
+                                                        {resultItem && expandedResults[resultKey] && (
+                                                            <div className="step-result-panel">{resultItem.content || resultItem.error || '暂无结果'}</div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            });
+
+                                            return (
+                                                <div className="process-panel">
+                                                    <div className="process-heading">{'\u601d\u8003\u8fc7\u7a0b'}</div>
+                                                    {renderSteps()}
+                                                </div>
+                                            );
+                                        })()}
+
+                                        <div className="whitespace-pre-wrap break-words">
+                                            {typeof m.content === 'string' ? m.content : String(m.content ?? '')}
+                                        </div>
+                                        {m.role === 'assistant' && m.isStreaming && !m.content && (
+                                            <div className="streaming-placeholder mt-2">{'\u6b63\u5728\u751f\u6210\u56de\u7b54...'}</div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* Input */}
+                            <div
+                                className="p-3 bg-panel border-t border-panel-dark composer-panel"
+                                onMouseDown={focusComposer}
+                            >
+                                <div className="flex gap-2">
+                                    <textarea
+                                        ref={inputRef}
+                                        className="flex-1 h-20 resize-none p-2"
+                                        placeholder="请输入企划指令..."
+                                        value={input}
+                                        autoFocus
+                                        onChange={e => setInput(e.target.value)}
+                                        onKeyDown={e => {
+                                            if (e.key === 'Enter' && !e.shiftKey) {
+                                                e.preventDefault();
+                                                handleSend();
+                                            }
+                                        }}
+                                    />
+                                    <button className="win-button w-24 font-bold text-lg" onClick={handleSend}>发送</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Right Sidebar: Settings + Agents Accordion */}
+                        <div className={`outset flex flex-col h-full bg-panel transition-all duration-200 ${isAnyRightOpen ? 'w-80' : 'w-10'}`} style={{borderTop: 'none'}}>
+
+                            {/* --- Personal Settings Section --- */}
+                            <div
+                                className={`sidebar-title cursor-pointer select-none border-b border-panel-dark ${!isAnyRightOpen ? 'flex-1 justify-center' : ''}`}
+                                onClick={() => { setIsSettingsOpen(!isSettingsOpen); if (!isSettingsOpen) setIsAgentOpen(false); }}
+                            >
+                                {isAnyRightOpen ? (
+                                    <>
+                                        <span>个人设置</span>
+                                        <span>{isSettingsOpen ? '[-]' : '[+]'}</span>
+                                    </>
+                                ) : (
+                                    <span className="vertical-text">个人设置</span>
+                                )}
+                            </div>
+
+                            {isSettingsOpen && (
+                                <div className="p-3 overflow-y-auto max-h-[50%] bg-inner flex-1 border-b border-panel-dark">
+                                    <div className="flex justify-between items-center mb-3">
+                                        <span className="font-bold">API 配置列表</span>
+                                        <button className="win-button text-xs py-0" onClick={handleAddProfile}>+ 添加</button>
+                                    </div>
+                                    {profiles.map((p) => {
+                                        const modelState = profileModelState[p.id] || {};
+                                        const modelOptions = getProfileModelOptions(p.id, p.model);
+                                        const canLoadModels = Boolean(String(p.apiKey || '').trim());
+
+                                        return (
+                                            <div key={p.id} className="inset p-2 mb-4 flex flex-col gap-2">
+                                                <div className="flex gap-1 items-center">
+                                                    <input
+                                                        className="flex-1 font-bold"
+                                                        value={p.name}
+                                                        onChange={e => updateProfile(p.id, { name: e.target.value })}
+                                                        placeholder="配置名称"
+                                                    />
+                                                    <button
+                                                        className="win-button px-2 py-1 text-red-600 font-bold leading-none"
+                                                        title="删除配置"
+                                                        onClick={() => requestDeleteProfile(p.id)}
+                                                    >
+                                                        ×
+                                                    </button>
+                                                </div>
+                                                <select
+                                                    className="w-full"
+                                                    value={p.provider}
+                                                    onChange={e => updateProfile(p.id, { provider: e.target.value, model: '' })}
+                                                >
+                                                    {providerOptions.map((option) => (
+                                                        <option key={option} value={option}>{option}</option>
+                                                    ))}
+                                                </select>
+                                                <input
+                                                    className="w-full"
+                                                    value={p.baseUrl}
+                                                    onChange={e => updateProfile(p.id, { baseUrl: e.target.value, model: '' })}
+                                                    placeholder="Base URL（留空则使用默认）"
+                                                />
+                                                <input
+                                                    className="w-full"
+                                                    value={p.apiKey}
+                                                    onChange={e => updateProfile(p.id, { apiKey: e.target.value, model: '' })}
+                                                    placeholder="API Key"
+                                                    type="password"
+                                                />
+                                                <div className="flex gap-2 items-center">
+                                                    <select
+                                                        className="w-full"
+                                                        value={p.model || ''}
+                                                        onChange={e => updateProfile(p.id, { model: e.target.value })}
+                                                        disabled={!canLoadModels || modelState.loading || modelOptions.length === 0}
+                                                    >
+                                                        {!canLoadModels && <option value="">输入 API Key 后加载模型</option>}
+                                                        {canLoadModels && modelState.loading && modelOptions.length === 0 && <option value="">模型列表加载中...</option>}
+                                                        {canLoadModels && !modelState.loading && modelOptions.length === 0 && <option value="">{modelState.error ? '模型加载失败' : '暂无可用模型'}</option>}
+                                                        {modelOptions.map((model) => (
+                                                            <option key={model} value={model}>{model}</option>
+                                                        ))}
+                                                    </select>
+                                                    <button
+                                                        className="win-button text-xs px-2 py-1"
+                                                        onClick={() => refreshModelsForProfile(p)}
+                                                        disabled={!canLoadModels || modelState.loading}
+                                                        title="刷新模型列表"
+                                                    >
+                                                        {modelState.loading ? '...' : '刷新'}
+                                                    </button>
+                                                </div>
+                                                {modelState.error && (
+                                                    <div className="text-[11px] text-red-700 break-all">{modelState.error}</div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+
+                                    <div className="mt-4 pt-4 border-t border-panel-dark">
+                                        <div className="font-bold mb-3 text-[14px]">AGENT 绑定</div>
+                                        {agents.map(a => (
+                                            <div key={a.id} className="flex justify-between items-center text-[14px] mb-3">
+                                                <span className="truncate w-1/2">{a.name}</span>
+                                                <select className="h-7 w-32 px-1">
+                                                    <option>自动</option>
+                                                    {profiles.map(p => <option key={p.id}>{p.name}</option>)}
+                                                </select>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* --- Agent Console Section --- */}
+                            <div
+                                className={`sidebar-title cursor-pointer select-none ${!isAnyRightOpen ? 'flex-1 justify-center' : ''}`}
+                                onClick={() => { setIsAgentOpen(!isAgentOpen); if (!isAgentOpen) setIsSettingsOpen(false); }}
+                            >
+                                {isAnyRightOpen ? (
+                                    <>
+                                        <span>AGENT 控制台</span>
+                                        <span>{isAgentOpen ? '[-]' : '[+]'}</span>
+                                    </>
+                                ) : (
+                                    <span className="vertical-text">AGENT控制台</span>
+                                )}
+                            </div>
+
+                            {isAgentOpen && (
+                                <div className="flex-1 overflow-y-auto p-2 bg-panel flex flex-col gap-1">
+                                    {agents.map(a => (
+                                        <div key={a.id} className="agent-card">
+                                            <div className="flex items-center gap-2">
+                                                <input type="checkbox" checked={a.enabled} onChange={() => setAgents(agents.map(x => x.id === a.id ? {...x, enabled: !x.enabled} : x))} />
+                                                <span className="font-bold text-sm uppercase">{a.name}</span>
+                                            </div>
+                                            <div className="text-xs text-muted mt-1 line-clamp-2">{a.desc}</div>
+                                            <div className="agent-actions">
+                                                {!a.isDefault && (
+                                                    <>
+                                                        <button className="win-button text-[10px] p-0 px-1" onClick={() => setEditingAgent(a)}>编辑</button>
+                                                        <button className="win-button text-[10px] p-0 px-1 text-red-700 font-bold" onClick={() => requestDeleteAgent(a.id)}>删除</button>
+                                                    </>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                    <button
+                                        className="win-button w-full mt-2 py-2 font-bold bg-inner"
+                                        onClick={(e) => { e.stopPropagation(); handleAddAgent(); }}
+                                        title="当前版本固定为六部门架构"
+                                    >
+                                        六部门固定架构
+                                    </button>
+                                </div>
+                            )}
+
+                        </div>
+                    </div>
+
+                    {/* Confirm Modal */}
+                    {confirmState.open && (
+                        <div className="modal-overlay">
+                            <div className="outset w-[320px] p-4 flex flex-col gap-3">
+                                <div className="sidebar-title" style={{margin: '-4px -4px 10px -4px'}}>确认操作</div>
+                                <div>{confirmState.message}</div>
+                                <div className="flex justify-end gap-2 mt-2">
+                                    <button className="win-button font-bold" onClick={executeConfirm}>确定</button>
+                                    <button className="win-button" onClick={closeConfirm}>取消</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Rename Session Modal */}
+                    {renamingSessionId && (
+                        <div className="modal-overlay">
+                            <div className="outset w-[300px] p-4 flex flex-col gap-3">
+                                <div className="sidebar-title" style={{margin: '-4px -4px 10px -4px'}}>重命名会话</div>
+                                <input
+                                    className="w-full"
+                                    value={renameInput}
+                                    onChange={e => setRenameInput(e.target.value)}
+                                    autoFocus
+                                    onKeyDown={e => { if (e.key === 'Enter') handleRenameSave(); }}
+                                />
+                                <div className="flex justify-end gap-2 mt-2">
+                                    <button className="win-button font-bold" onClick={handleRenameSave}>确定</button>
+                                    <button className="win-button" onClick={() => setRenamingSessionId(null)}>取消</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Agent Edit Modal */}
+                    {editingAgent && (
+                        <div className="modal-overlay">
+                            <div className="outset w-[500px] p-4 flex flex-col gap-3">
+                                <div className="sidebar-title" style={{margin: '-4px -4px 10px -4px'}}>编辑 Agent 配置</div>
+                                <div>
+                                    <label className="block text-xs font-bold mb-1">名称</label>
+                                    <input className="w-full" value={editingAgent.name} onChange={e => setEditingAgent({...editingAgent, name: e.target.value})} />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold mb-1">简介</label>
+                                    <input className="w-full" value={editingAgent.desc} onChange={e => setEditingAgent({...editingAgent, desc: e.target.value})} />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold mb-1">自定义职责（Instructions / agent.md）</label>
+                                    <textarea className="w-full h-40 font-mono text-xs" value={editingAgent.instructions} onChange={e => setEditingAgent({...editingAgent, instructions: e.target.value})} />
+                                </div>
+                                <div className="flex justify-end gap-2 mt-2">
+                                    <button className="win-button font-bold" onClick={() => handleSaveAgent(editingAgent)}>保存</button>
+                                    <button className="win-button" onClick={() => setEditingAgent(null)}>取消</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
