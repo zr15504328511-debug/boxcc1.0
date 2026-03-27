@@ -5,6 +5,7 @@ release/
 
 __pycache__/
 *.py[cod]
+*.pyc.*
 *.pyo
 *.pyd
 .pytest_cache/
@@ -24,7 +25,9 @@ tmp-standalone-backend.err.log
 tmp-standalone-backend.out.log
 
 backend/data/*.json
+backend/data/*.bak
 !backend/data/.gitkeep
 
 .DS_Store
 Thumbs.db
+tmp_*
