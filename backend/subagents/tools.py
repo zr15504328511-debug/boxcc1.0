@@ -206,7 +206,8 @@ def _build_selected_worker_title(selected_ids: list[str], worker_map: dict[str, 
         return '\u4e3b\u5e2d\u56e2\u51b3\u5b9a\u76f4\u63a5\u56de\u7b54\uff0c\u65e0\u9700\u8c03\u7528\u90e8\u95e8'
     if len(names) == 1:
         return f"\u4e3b\u5e2d\u56e2\u8ba4\u4e3a\u53ef\u4ee5\u8c03\u7528{names[0]}\u8fdb\u884c\u5206\u6790"
-    return f"\u4e3b\u5e2d\u56e2\u8ba4\u4e3a\u53ef\u4ee5\u8c03\u7528{'\u3001'.join(names)}\u8fdb\u884c\u5206\u6790"
+    joined_names = '\u3001'.join(names)
+    return f"\u4e3b\u5e2d\u56e2\u8ba4\u4e3a\u53ef\u4ee5\u8c03\u7528{joined_names}\u8fdb\u884c\u5206\u6790"
 
 
 def _build_selected_worker_summary(tasks: dict[str, WorkerTaskPacket], routing_policy: RoutingPolicy) -> str:
