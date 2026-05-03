@@ -1,7 +1,7 @@
 const fs = require('fs');
 const { app, BrowserWindow, Menu, clipboard, ipcMain } = require('electron');
 const path = require('path');
-const { spawn } = require('child_process');
+const { spawn, spawnSync } = require('child_process');
 const http = require('http');
 const { loadState, saveState } = require('./main/services/stateService');
 const { listSessions, saveSessions, createSession } = require('./main/services/sessionService');
@@ -18,6 +18,65 @@ const BACKEND_REQUEST_TIMEOUT = 1800000;
 let pythonProcess = null;
 let backendStartupPromise = null;
 
+function getPythonCandidates() {
+  const candidates = [
+    { command: path.join(__dirname, '.venv', 'bin', 'python'), args: [], source: 'project virtualenv' },
+    { command: path.join(__dirname, '.venv', 'Scripts', 'python.exe'), args: [], source: 'project virtualenv' },
+  ];
+  if (process.env.BOXCC_PYTHON) {
+    candidates.push({ command: process.env.BOXCC_PYTHON, args: [], source: 'BOXCC_PYTHON' });
+  }
+
+  if (process.platform === 'win32') {
+    candidates.push(
+      { command: 'python', args: [], source: 'PATH' },
+      { command: 'py', args: ['-3'], source: 'Python launcher' },
+    );
+  } else if (process.platform === 'darwin') {
+    candidates.push(
+      { command: '/opt/homebrew/bin/python3', args: [], source: 'Homebrew Apple Silicon' },
+      { command: '/opt/homebrew/bin/python3.12', args: [], source: 'Homebrew Apple Silicon' },
+      { command: '/opt/homebrew/opt/python@3.12/bin/python3.12', args: [], source: 'Homebrew python@3.12' },
+      { command: '/usr/local/bin/python3', args: [], source: 'Homebrew Intel' },
+      { command: '/usr/local/bin/python3.12', args: [], source: 'Homebrew Intel' },
+      { command: '/usr/local/opt/python@3.12/bin/python3.12', args: [], source: 'Homebrew python@3.12' },
+      { command: '/Library/Frameworks/Python.framework/Versions/Current/bin/python3', args: [], source: 'python.org framework' },
+      { command: 'python3.12', args: [], source: 'PATH' },
+      { command: 'python3', args: [], source: 'PATH' },
+      { command: 'python', args: [], source: 'PATH' },
+    );
+  } else {
+    candidates.push(
+      { command: 'python3', args: [], source: 'PATH' },
+      { command: 'python', args: [], source: 'PATH' },
+    );
+  }
+
+  return candidates;
+}
+
+function resolvePythonCommand() {
+  for (const candidate of getPythonCandidates()) {
+    const result = spawnSync(candidate.command, [
+      ...candidate.args,
+      '-c',
+      'import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)',
+    ], { stdio: 'ignore' });
+
+    if (result.status === 0) {
+      safeLog('log', `[Python] Using ${candidate.command} (${candidate.source})`);
+      return candidate;
+    }
+  }
+
+  throw new Error('Python 3.11+ was not found. Install Python 3.11+ or set BOXCC_PYTHON to its executable path.');
+}
+
+function getBackendDir() {
+  if (!app.isPackaged) return path.join(__dirname, 'backend');
+  return path.join(process.resourcesPath, 'app.asar.unpacked', 'backend');
+}
+
 function safeLog(method, ...args) {
   const line = [new Date().toISOString(), method.toUpperCase(), ...args]
     .map((item) => (typeof item === 'string' ? item : String(item)))
@@ -29,10 +88,17 @@ function safeLog(method, ...args) {
 }
 
 function startPythonBackend() {
-  const backendDir = path.join(__dirname, 'backend');
-  pythonProcess = spawn('python', ['-m', 'app.main'], {
+  const backendDir = getBackendDir();
+  const python = resolvePythonCommand();
+  const backendDataDir = path.join(app.getPath('userData'), 'backend-data');
+
+  pythonProcess = spawn(python.command, [...python.args, '-m', 'app.main'], {
     cwd: backendDir,
-    env: { ...process.env, PYTHONUNBUFFERED: '1' },
+    env: {
+      ...process.env,
+      BOXCC_BACKEND_DATA_DIR: backendDataDir,
+      PYTHONUNBUFFERED: '1',
+    },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
 

@@ -6,6 +6,7 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
+    "backend:install": "python3.12 -m venv .venv && .venv/bin/python -m pip install -e ./backend",
     "pack": "electron-builder --dir",
     "dist": "electron-builder"
   },
@@ -15,6 +16,17 @@
   },
   "build": {
     "appId": "com.boxcc.app",
+    "asar": true,
+    "asarUnpack": [
+      "backend/**"
+    ],
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.productivity"
+    },
     "win": {
       "target": "nsis"
     }

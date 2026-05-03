@@ -14,7 +14,13 @@
 
 - Node.js 18+
 - Python 3.11+
-- Windows 环境下运行更稳
+- macOS / Windows 均可运行
+
+macOS 用户如果通过 Homebrew 安装 Python，推荐：
+
+```bash
+brew install node python@3.12
+```
 
 ## 安装
 
@@ -22,7 +28,7 @@
 
 项目根目录执行：
 
-```powershell
+```bash
 npm install
 ```
 
@@ -30,29 +36,35 @@ npm install
 
 进入 `backend` 目录后安装：
 
-```powershell
+```bash
 cd backend
-pip install -e .
+python3 -m pip install -e .
+```
+
+macOS/Homebrew Python 推荐使用项目虚拟环境，避免 PEP 668 的系统 Python 限制：
+
+```bash
+npm run backend:install
 ```
 
 如果只想用普通安装方式，也可以：
 
-```powershell
+```bash
 cd backend
-pip install fastapi "uvicorn[standard]" pydantic pyyaml python-dotenv langchain-core langchain-openai langchain-anthropic langgraph langgraph-checkpoint-sqlite httpx
+python3 -m pip install fastapi "uvicorn[standard]" pydantic pyyaml python-dotenv langchain-core langchain-openai langchain-anthropic langgraph langgraph-checkpoint-sqlite httpx
 ```
 
 ### 3. 配置模型
 
 项目默认通过环境变量读取 API Key。可参考：
 
-- [backend/.env.example](D:/myproject/workbench-app/backend/.env.example)
-- [backend/config.yaml](D:/myproject/workbench-app/backend/config.yaml)
+- [backend/.env.example](backend/.env.example)
+- [backend/config.yaml](backend/config.yaml)
 
 常见做法：
 
-```powershell
-$env:DEEPSEEK_API_KEY="your_api_key"
+```bash
+export DEEPSEEK_API_KEY="your_api_key"
 ```
 
 也可以在应用前端里直接填写 `API Key` 和 `Base URL`。
@@ -61,11 +73,38 @@ $env:DEEPSEEK_API_KEY="your_api_key"
 
 在项目根目录执行：
 
-```powershell
+```bash
 npm start
 ```
 
 Electron 会启动桌面窗口，并自动拉起 Python 后端。
+
+macOS 下 Electron 会自动查找 Python 3.11+，查找顺序包含：
+
+- 项目内 `.venv`
+- `BOXCC_PYTHON` 环境变量
+- `/opt/homebrew/bin/python3`
+- `/opt/homebrew/opt/python@3.12/bin/python3.12`
+- `/usr/local/bin/python3`
+- `/usr/local/opt/python@3.12/bin/python3.12`
+- `python3` / `python`
+
+如果你安装了多个 Python 版本，可以显式指定：
+
+```bash
+export BOXCC_PYTHON="/opt/homebrew/bin/python3"
+npm start
+```
+
+## macOS 打包
+
+安装依赖后执行：
+
+```bash
+npm run dist
+```
+
+产物会输出到 `dist/`。当前版本仍依赖本机 Python 3.11+ 和后端依赖，请先执行 `python3 -m pip install -e ./backend`。
 
 ## 基本使用
 
