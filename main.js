@@ -359,7 +359,13 @@ function createWindow() {
     }, 1000);
   });
 
-  win.loadFile('index.html');
+  const devUrl = process.env.BOXCC_RENDERER_DEV_URL;
+  if (devUrl) {
+    win.loadURL(devUrl);
+    win.webContents.openDevTools({ mode: 'detach' });
+  } else {
+    win.loadFile(path.join(__dirname, 'dist', 'renderer', 'index.html'));
+  }
 }
 
 app.whenReady().then(async () => {
