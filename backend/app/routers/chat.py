@@ -103,6 +103,42 @@ def _extract_department_results(messages: list[Any]) -> list[dict[str, Any]] | N
     return artifact.get('department_results') if isinstance(artifact, dict) and isinstance(artifact.get('department_results'), list) else None
 
 
+def _extract_assistant_content(messages: list[Any]) -> str:
+    for msg in reversed(messages):
+        if getattr(msg, 'type', None) == 'ai' and getattr(msg, 'content', None):
+            return _extract_content(msg.content)
+    return ''
+
+
+def _requires_department_work(routing_policy) -> bool:
+    return routing_policy.category != 'direct_answer' and routing_policy.max_workers > 0
+
+
+def _suggested_workers_for_policy(routing_policy) -> list[str]:
+    return list(dict.fromkeys([*routing_policy.required_workers, *routing_policy.allowed_workers]))[: max(0, routing_policy.max_workers)]
+
+
+def _build_guarded_agent_input(agent_input: str, routing_policy) -> str:
+    if not _requires_department_work(routing_policy):
+        return agent_input
+
+    suggested_workers = _suggested_workers_for_policy(routing_policy)
+    guard = (
+        f"<mandatory_routing_contract>\n"
+        f"Backend route classification: `{routing_policy.category}`. This is not `direct_answer`.\n"
+        f"Your first executable decision is to write the routing policy by selecting worker departments and encoding them as the keys of `chairman_plan`.\n"
+        f"- Allowed workers: {', '.join(routing_policy.allowed_workers) or 'none'}.\n"
+        f"- Required workers: {', '.join(routing_policy.required_workers) or 'none'}.\n"
+        f"- Worker cap: {routing_policy.max_workers}.\n"
+        f"- Suggested worker order: {', '.join(suggested_workers) or 'none'}.\n"
+        f"- `checklist_self_check.selected_workers` must exactly match the `chairman_plan` keys.\n"
+        f"- After writing that routing policy, immediately call `delegate_to_departments` in this turn.\n"
+        f"- Do not answer with a prose routing plan; without the tool artifact, this run is invalid.\n"
+        f"</mandatory_routing_contract>\n\n"
+    )
+    return guard + agent_input
+
+
 def _chunk_text(text: str, chunk_size: int = 56) -> list[str]:
     normalized = str(text or '')
     if not normalized:
@@ -133,21 +169,30 @@ def _build_agent_user_input(req: ChatRequest) -> str:
     return summary or req.message
 
 
+async def _invoke_agent_once(agent, agent_input: str, req: ChatRequest) -> tuple[dict[str, Any], list[Any], str, dict[str, Any] | None, list[dict[str, Any]] | None]:
+    result = await agent.ainvoke({'messages': [HumanMessage(content=agent_input)]}, config={'configurable': {'thread_id': req.session_id}})
+    messages = result.get('messages', [])
+    workflow_artifact = _extract_delegate_artifact(messages)
+    department_results = _extract_department_results(messages)
+    return result, messages, _extract_assistant_content(messages), workflow_artifact, department_results
+
+
 async def _run_chat(req: ChatRequest, *, message_id: str | None = None) -> tuple[dict[str, Any], str | None, list[dict[str, Any]] | None, dict[str, Any] | None]:
-    agent_input = _build_agent_user_input(req)
+    routing_policy = _build_routing_policy(req.message)
+    requires_department_work = _requires_department_work(routing_policy)
+    base_agent_input = _build_agent_user_input(req)
+    agent_input = _build_guarded_agent_input(base_agent_input, routing_policy)
     token = set_runtime_model(req.runtime_model.model_dump() if req.runtime_model else None)
     try:
         agent = _get_agent(model_name=req.model_name, runtime_model=req.runtime_model)
-        result = await agent.ainvoke({'messages': [HumanMessage(content=agent_input)]}, config={'configurable': {'thread_id': req.session_id}})
-        messages = result.get('messages', [])
-        assistant_content = ''
-        for msg in reversed(messages):
-            if getattr(msg, 'type', None) == 'ai' and getattr(msg, 'content', None):
-                assistant_content = _extract_content(msg.content)
-                break
-        workflow_artifact = _extract_delegate_artifact(messages)
+        result, _messages, assistant_content, workflow_artifact, department_results = await _invoke_agent_once(agent, agent_input, req)
+        if requires_department_work and not department_results:
+            raise RuntimeError(
+                f"Orc did not satisfy the mandatory routing contract for route '{routing_policy.category}': "
+                "delegate_to_departments was not called, so no final answer was delivered."
+            )
         set_final_summary(req.session_id, assistant_content, status='completed')
-        return ({'id': message_id or str(uuid.uuid4()), 'role': 'assistant', 'content': assistant_content, 'createdAt': datetime.now(timezone.utc).isoformat()}, result.get('title'), _extract_department_results(messages), workflow_artifact)
+        return ({'id': message_id or str(uuid.uuid4()), 'role': 'assistant', 'content': assistant_content, 'createdAt': datetime.now(timezone.utc).isoformat()}, result.get('title'), department_results, workflow_artifact)
     finally:
         reset_runtime_model(token)
 
