@@ -18,7 +18,7 @@ from pydantic import BaseModel
 from agents.lead_agent import make_lead_agent
 from config.app_config import AppConfig
 from models.factory import reset_runtime_model, set_runtime_model
-from session.checklist import build_initial_checklist, build_orc_session_brief, emit_checklist_sync, set_final_summary, sync_session_checklist, update_checklist_item
+from session.checklist import build_orc_session_brief, emit_checklist_sync, set_final_summary, update_checklist_item
 from session.store import get_session_store
 from runtime_events import emit_run_step, reset_event_emitter, set_event_emitter
 from subagents.tools import _build_routing_policy
@@ -115,6 +115,8 @@ def _requires_department_work(routing_policy) -> bool:
 
 
 def _suggested_workers_for_policy(routing_policy) -> list[str]:
+    if routing_policy.category == 'orc_selected':
+        return []
     return list(dict.fromkeys([*routing_policy.required_workers, *routing_policy.allowed_workers]))[: max(0, routing_policy.max_workers)]
 
 
@@ -122,17 +124,15 @@ def _build_guarded_agent_input(agent_input: str, routing_policy) -> str:
     if not _requires_department_work(routing_policy):
         return agent_input
 
-    suggested_workers = _suggested_workers_for_policy(routing_policy)
     guard = (
         f"<mandatory_routing_contract>\n"
-        f"Backend route classification: `{routing_policy.category}`. This is not `direct_answer`.\n"
-        f"Your first executable decision is to write the routing policy by selecting worker departments and encoding them as the keys of `chairman_plan`.\n"
-        f"- Allowed workers: {', '.join(routing_policy.allowed_workers) or 'none'}.\n"
-        f"- Required workers: {', '.join(routing_policy.required_workers) or 'none'}.\n"
-        f"- Worker cap: {routing_policy.max_workers}.\n"
-        f"- Suggested worker order: {', '.join(suggested_workers) or 'none'}.\n"
-        f"- `checklist_self_check.selected_workers` must exactly match the `chairman_plan` keys.\n"
-        f"- After writing that routing policy, immediately call `delegate_to_departments` in this turn.\n"
+        f"This request is not a tiny direct answer. You must decide which workers are necessary from the dynamic roster and call `delegate_to_departments`.\n"
+        f"- Available workers: {', '.join(routing_policy.allowed_workers) or 'none'}.\n"
+        f"- Do not include `crt`; critic review is automatic.\n"
+        f"- Worker count is not capped, but every selected worker must add distinct value.\n"
+        f"- Build `selection_rationale` first with free-text task domains and why each worker is selected.\n"
+        f"- `selection_rationale.selected_workers`, `chairman_plan` keys, and `checklist_self_check.selected_workers` must match.\n"
+        f"- Then immediately call `delegate_to_departments` in this turn.\n"
         f"- Do not answer with a prose routing plan; without the tool artifact, this run is invalid.\n"
         f"</mandatory_routing_contract>\n\n"
     )
@@ -221,21 +221,12 @@ async def _stream_chat(req: ChatRequest):
     async def runner() -> None:
         tokens = set_event_emitter(emitter, message_id=message_id, session_id=req.session_id)
         try:
-            routing_policy = _build_routing_policy(req.message)
-            suggested_workers = list(dict.fromkeys([*routing_policy.required_workers, *routing_policy.allowed_workers]))[: max(0, routing_policy.max_workers)]
-            state = sync_session_checklist(
-                req.session_id,
-                build_initial_checklist(req.session_id, req.message, routing_policy.category, suggested_workers),
-                user_goal=req.message,
-                task_type=routing_policy.category,
-                selected_workers=suggested_workers,
-                run_status='running',
-            )
-            await emit_checklist_sync(state)
             await emit_run_step(step_id='orc_started', phase='orc', agent_id='orc', status='running', title='\u4e3b\u5e2d\u56e2\u6536\u5230\u95ee\u9898\uff0c\u6b63\u5728\u5206\u6790\u6d3e\u53d1\u4efb\u52a1', summary='\u6b63\u5728\u5224\u65ad\u95ee\u9898\u7c7b\u578b\u3001\u9700\u8981\u7684\u90e8\u95e8\uff0c\u4ee5\u53ca\u672c\u8f6e\u4efb\u52a1\u62c6\u5206\u65b9\u5f0f\u3002')
             message, title, department_results, workflow_artifact = await _run_chat(req, message_id=message_id)
-            state = update_checklist_item(req.session_id, 'orc_final', status='done', result_preview=message.get('content', ''))
-            await emit_checklist_sync(state)
+            state = get_session_store().get_or_create(req.session_id, user_goal=req.message)
+            if any(item.item_id == 'orc_final' for item in state.execution_checklist):
+                state = update_checklist_item(req.session_id, 'orc_final', status='done', result_preview=message.get('content', ''))
+                await emit_checklist_sync(state)
             await emit_run_step(step_id='orc_finalizing', phase='final', agent_id='orc', status='completed', title='\u4e3b\u5e2d\u56e2\u5df2\u5b8c\u6210\u6574\u5408\uff0c\u51c6\u5907\u8fd4\u56de\u7ed3\u679c', summary='\u6700\u7ec8\u7b54\u6848\u5df2\u7ecf\u51c6\u5907\u5c31\u7eea\uff0c\u6b63\u5728\u53d1\u9001\u7ed9\u7528\u6237\u3002')
             final_content = message.get('content', '')
             for chunk in _chunk_text(final_content):

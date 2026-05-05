@@ -22,8 +22,11 @@ import {
   type ValidationReport,
 } from './runGraph';
 
-const WORKER_AGENT_IDS = new Set(['dom', 'pln', 'ana', 'cpy']);
-const CRITIC_AGENT_IDS = new Set(['crt']);
+const NON_WORKER_AGENT_IDS = new Set(['orc', 'crt', 'artifact', 'final', 'user']);
+
+function isWorkerAgentId(agentId: string | undefined): agentId is string {
+  return !!agentId && !NON_WORKER_AGENT_IDS.has(agentId);
+}
 
 function ensureNode(graph: RunGraph, node: RunNode) {
   if (!graph.nodes[node.id]) {
@@ -323,7 +326,7 @@ function handleRunStep(graph: RunGraph, ev: StreamEvent): RunGraph {
   }
 
   // Worker 阶段
-  if (phase === 'worker' && agentId && WORKER_AGENT_IDS.has(agentId)) {
+  if (phase === 'worker' && isWorkerAgentId(agentId)) {
     const nid = nodeIdFor.worker(agentId);
     if (!graph.nodes[nid]) {
       graph.nodes[nid] = {
@@ -418,7 +421,7 @@ function handleChecklistSync(graph: RunGraph, ev: StreamEvent): RunGraph {
   // 提前把 selected_workers 物化（有的运行会先发 checklist_sync 再发 orc selected）
   const selected = ev.selected_workers || [];
   for (const wid of selected) {
-    if (!WORKER_AGENT_IDS.has(wid)) continue;
+    if (!isWorkerAgentId(wid)) continue;
     const nid = nodeIdFor.worker(wid);
     if (!graph.nodes[nid]) {
       graph.nodes[nid] = {

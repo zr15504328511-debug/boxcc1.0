@@ -114,7 +114,7 @@ export interface BoxccApi {
   loadAgents: () => Promise<AgentSpec[]>;
   saveAgents: (payload: AgentSpec[]) => Promise<void>;
   listProviders: () => Promise<ProviderSpec[]>;
-  validateProfile: (payload: ProfileSpec) => Promise<{ ok: boolean; error?: string }>;
+  validateProfile: (payload: ProfileSpec) => Promise<{ ok: boolean; error?: string; errors?: string[] }>;
   listModelsForProfile: (payload: ProfileSpec) => Promise<{ ok: boolean; models?: string[]; error?: string }>;
   sendChat: (payload: any) => Promise<any>;
   startChatStream: (payload: any) => Promise<{ ok: boolean; requestId?: string; error?: string }>;

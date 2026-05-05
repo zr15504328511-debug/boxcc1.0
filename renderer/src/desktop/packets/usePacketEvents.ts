@@ -11,20 +11,20 @@ function previewFor(kind: ReturnType<typeof edgeTypeToPacketKind>, source?: RunN
   if (!kind) return '';
   if (kind === 'task_packet' && target?.taskPacket) {
     const p = target.taskPacket;
-    return [p.objective, p.task].filter(Boolean).join(' · ').slice(0, 140);
+    return `指令：${[p.objective, p.task].filter(Boolean).join(' · ')}`.slice(0, 140);
   }
   if (kind === 'worker_output') {
-    return (source?.latestOutput || '').slice(0, 140);
+    return `结果：${source?.latestOutput || ''}`.slice(0, 140);
   }
   if (kind === 'validation' && source?.validation) {
     const v = source.validation;
-    return `[${v.pass_gate}] ${v.summary || ''}`.slice(0, 140);
+    return `质检：${v.pass_gate} · ${v.summary || ''}`.slice(0, 140);
   }
   if (kind === 'rework' && source?.validation?.rework_targets?.length) {
-    return source.validation.rework_targets[0].summary.slice(0, 140);
+    return `返工：${source.validation.rework_targets[0].summary}`.slice(0, 140);
   }
   if (kind === 'finalize') {
-    return (target?.latestOutput || '汇总中…').slice(0, 140);
+    return `交付：${target?.latestOutput || '汇总中…'}`.slice(0, 140);
   }
   return '';
 }

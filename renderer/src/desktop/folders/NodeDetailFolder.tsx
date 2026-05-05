@@ -16,11 +16,11 @@ const TYPE_LABEL: Record<string, string> = {
 };
 
 const TABS = [
-  { id: 'decisions', label: '决策依据' },
-  { id: 'packet', label: '任务包' },
-  { id: 'output', label: '输出' },
-  { id: 'critique', label: '质检' },
-  { id: 'artifact', label: '最终' },
+  { id: 'decisions', label: '编排决策' },
+  { id: 'packet', label: '任务指令' },
+  { id: 'output', label: '部门输出' },
+  { id: 'critique', label: '质检报告' },
+  { id: 'artifact', label: '最终交付' },
   { id: 'log', label: '原始日志' },
 ] as const;
 

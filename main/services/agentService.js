@@ -11,7 +11,7 @@ function listAgents() {
   const storedAgents = readJson(files.agents, cloneDefaultAgents());
   const storedMap = new Map((Array.isArray(storedAgents) ? storedAgents : []).map((agent) => [agent.id, agent]));
 
-  return cloneDefaultAgents().map((agent) => {
+  const mergedDefaults = cloneDefaultAgents().map((agent) => {
     const stored = storedMap.get(agent.id) || {};
     return {
       ...agent,
@@ -24,6 +24,20 @@ function listAgents() {
       instructions: stored.instructions || agent.instructions,
     };
   });
+  const defaultIds = new Set(mergedDefaults.map((agent) => agent.id));
+  const customAgents = (Array.isArray(storedAgents) ? storedAgents : [])
+    .filter((agent) => agent?.id && !defaultIds.has(agent.id))
+    .map((agent) => ({
+      ...agent,
+      name: agent.name || agent.display_name || agent.id,
+      desc: agent.desc || agent.description || '',
+      enabled: agent.enabled !== false,
+      isDefault: false,
+      binding: agent.binding || 'auto',
+      phase: agent.phase || 'worker',
+      instructions: agent.instructions || agent.system_prompt || '',
+    }));
+  return [...mergedDefaults, ...customAgents];
 }
 
 function saveAgents(agents) {

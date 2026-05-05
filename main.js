@@ -7,7 +7,7 @@ const { loadState, saveState } = require('./main/services/stateService');
 const { listSessions, saveSessions, createSession } = require('./main/services/sessionService');
 const { listProfiles, saveProfiles } = require('./main/services/profileRegistryService');
 const { listAgents, saveAgents } = require('./main/services/agentService');
-const { SUPPORTED_PROVIDERS, validateProfile, fetchModelsForProfile } = require('./main/services/providerResolverService');
+const { listProviderSpecs, validateProfile, fetchModelsForProfile } = require('./main/services/providerResolverService');
 
 const PYTHON_BACKEND_PORT = 18900;
 const PYTHON_BACKEND_URL = `http://127.0.0.1:${PYTHON_BACKEND_PORT}`;
@@ -90,7 +90,8 @@ function safeLog(method, ...args) {
 function startPythonBackend() {
   const backendDir = getBackendDir();
   const python = resolvePythonCommand();
-  const backendDataDir = path.join(app.getPath('userData'), 'backend-data');
+  const backendDataDir = getBackendDataDir();
+  mirrorAgentsForBackend(listAgents());
 
   pythonProcess = spawn(python.command, [...python.args, '-m', 'app.main'], {
     cwd: backendDir,
@@ -110,6 +111,20 @@ function startPythonBackend() {
     pythonProcess = null;
   });
   return pythonProcess;
+}
+
+function getBackendDataDir() {
+  return path.join(app.getPath('userData'), 'backend-data');
+}
+
+function mirrorAgentsForBackend(agents) {
+  const backendDataDir = getBackendDataDir();
+  try {
+    fs.mkdirSync(backendDataDir, { recursive: true });
+    fs.writeFileSync(path.join(backendDataDir, 'agents.json'), JSON.stringify(Array.isArray(agents) ? agents : [], null, 2), 'utf8');
+  } catch (err) {
+    safeLog('warn', '[agents:save] Failed to mirror agents for backend:', err.message);
+  }
 }
 
 function isBackendHealthy(timeoutMs = 2000) {
@@ -381,8 +396,12 @@ app.whenReady().then(async () => {
   ipcMain.handle('profiles:list', async () => listProfiles());
   ipcMain.handle('profiles:save', async (_event, payload) => saveProfiles(payload));
   ipcMain.handle('agents:list', async () => listEffectiveAgentsForUi());
-  ipcMain.handle('agents:save', async (_event, payload) => saveAgents(payload));
-  ipcMain.handle('providers:list', async () => SUPPORTED_PROVIDERS);
+  ipcMain.handle('agents:save', async (_event, payload) => {
+    const saved = saveAgents(payload);
+    mirrorAgentsForBackend(saved);
+    return saved;
+  });
+  ipcMain.handle('providers:list', async () => listProviderSpecs());
   ipcMain.handle('providers:validate-profile', async (_event, payload) => validateProfile(payload));
   ipcMain.handle('providers:list-models', async (_event, payload) => fetchModelsForProfile(payload));
   ipcMain.handle('clipboard:write-text', async (_event, payload) => { clipboard.writeText(String(payload || '')); return true; });

@@ -1,11 +1,17 @@
-﻿const SUPPORTED_PROVIDERS = ['OpenAI', 'Anthropic', 'Gemini', 'OpenRouter', 'Custom'];
+﻿const SUPPORTED_PROVIDERS = ['OpenAI', 'Anthropic', 'OpenRouter', 'Custom'];
 
 const DEFAULT_BASE_URLS = {
   OpenAI: 'https://api.openai.com/v1',
   Anthropic: 'https://api.anthropic.com/v1',
-  Gemini: 'https://generativelanguage.googleapis.com/v1beta',
   OpenRouter: 'https://openrouter.ai/api/v1',
   Custom: '',
+};
+
+const PROVIDER_LABELS = {
+  OpenAI: 'OpenAI',
+  Anthropic: 'Anthropic',
+  OpenRouter: 'OpenRouter',
+  Custom: 'Custom',
 };
 
 function normalizeString(value) {
@@ -24,7 +30,7 @@ function validateProfile(profile = {}) {
   const errors = [];
   const provider = normalizeString(profile.provider);
 
-  if (!normalizeString(profile.name)) {
+  if (!normalizeString(profile.name || profile.label)) {
     errors.push('Profile name is required.');
   }
 
@@ -40,6 +46,14 @@ function validateProfile(profile = {}) {
     ok: errors.length === 0,
     errors,
   };
+}
+
+function listProviderSpecs() {
+  return SUPPORTED_PROVIDERS.map((id) => ({
+    id,
+    label: PROVIDER_LABELS[id] || id,
+    default_base_url: DEFAULT_BASE_URLS[id] || '',
+  }));
 }
 
 function buildUrl(baseUrl, path) {
@@ -191,6 +205,7 @@ async function fetchModelsForProfile(profile = {}) {
 module.exports = {
   SUPPORTED_PROVIDERS,
   DEFAULT_BASE_URLS,
+  listProviderSpecs,
   normalizeBaseUrl,
   validateProfile,
   fetchModelsForProfile,

@@ -25,6 +25,18 @@ class WorkerTaskPacket(BaseModel):
     notes: list[str] = Field(default_factory=list, description='Optional execution notes from orc.')
     success_criteria: list[str] = Field(default_factory=list, description='What a good result should explicitly cover.')
 
+    @field_validator('objective', mode='before')
+    @classmethod
+    def _normalize_objective(cls, value):
+        text = ' '.join(str(value or '').split())
+        return text[:700].rstrip()
+
+    @field_validator('task', mode='before')
+    @classmethod
+    def _normalize_task(cls, value):
+        text = ' '.join(str(value or '').split())
+        return text[:1600].rstrip()
+
     @field_validator('priority', mode='before')
     @classmethod
     def _normalize_priority(cls, value):
@@ -43,10 +55,10 @@ class WorkerTaskPacket(BaseModel):
         if not isinstance(value, list):
             raise TypeError('Expected a list of strings.')
         normalized = []
-        for item in value:
+        for item in value[:8]:
             text = str(item).strip()
             if text:
-                normalized.append(text)
+                normalized.append(' '.join(text.split())[:420].rstrip())
         return normalized
 
 

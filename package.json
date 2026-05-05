@@ -50,6 +50,7 @@
       "main.js",
       "preload.js",
       "main/**",
+      "backend/**",
       "dist/renderer/**",
       "package.json"
     ],

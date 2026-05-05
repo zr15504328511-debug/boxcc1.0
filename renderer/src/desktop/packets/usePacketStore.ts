@@ -23,6 +23,7 @@ export const usePacketStore = create<PacketStore>((set) => ({
     const existing = s.packets[p.id];
     if (existing) {
       // 已存在则只更新可变字段，保留位置和 pinned
+      if (existing.preview === p.preview && existing.title === p.title) return s;
       return {
         packets: {
           ...s.packets,

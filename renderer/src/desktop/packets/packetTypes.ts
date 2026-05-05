@@ -25,11 +25,11 @@ export interface PacketCardState {
 }
 
 export const PACKET_KIND_LABEL: Record<PacketKind, string> = {
-  task_packet: '任务包',
-  worker_output: '输出交差',
-  validation: '质检意见',
-  rework: '返工要求',
-  finalize: '汇总',
+  task_packet: '任务指令',
+  worker_output: '部门输出',
+  validation: '质检报告',
+  rework: '返工指令',
+  finalize: '最终汇总',
 };
 
 export const PACKET_KIND_ICON: Record<PacketKind, string> = {

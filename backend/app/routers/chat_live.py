@@ -115,6 +115,8 @@ def _requires_department_work(routing_policy) -> bool:
 
 
 def _suggested_workers_for_policy(routing_policy) -> list[str]:
+    if routing_policy.category == 'orc_selected':
+        return []
     return list(dict.fromkeys([*routing_policy.required_workers, *routing_policy.allowed_workers]))[: max(0, routing_policy.max_workers)]
 
 
@@ -122,17 +124,15 @@ def _build_guarded_agent_input(agent_input: str, routing_policy) -> str:
     if not _requires_department_work(routing_policy):
         return agent_input
 
-    suggested_workers = _suggested_workers_for_policy(routing_policy)
     guard = (
         f"<mandatory_routing_contract>\n"
-        f"Backend route classification: `{routing_policy.category}`. This is not `direct_answer`.\n"
-        f"Your first executable decision is to write the routing policy by selecting worker departments and encoding them as the keys of `chairman_plan`.\n"
-        f"- Allowed workers: {', '.join(routing_policy.allowed_workers) or 'none'}.\n"
-        f"- Required workers: {', '.join(routing_policy.required_workers) or 'none'}.\n"
-        f"- Worker cap: {routing_policy.max_workers}.\n"
-        f"- Suggested worker order: {', '.join(suggested_workers) or 'none'}.\n"
-        f"- `checklist_self_check.selected_workers` must exactly match the `chairman_plan` keys.\n"
-        f"- After writing that routing policy, immediately call `delegate_to_departments` in this turn.\n"
+        f"This request is not a tiny direct answer. You must decide which workers are necessary from the dynamic roster and call `delegate_to_departments`.\n"
+        f"- Available workers: {', '.join(routing_policy.allowed_workers) or 'none'}.\n"
+        f"- Do not include `crt`; critic review is automatic.\n"
+        f"- Worker count is not capped, but every selected worker must add distinct value.\n"
+        f"- Build `selection_rationale` first with free-text task domains and why each worker is selected.\n"
+        f"- `selection_rationale.selected_workers`, `chairman_plan` keys, and `checklist_self_check.selected_workers` must match.\n"
+        f"- Then immediately call `delegate_to_departments` in this turn.\n"
         f"- Do not answer with a prose routing plan; without the tool artifact, this run is invalid.\n"
         f"</mandatory_routing_contract>\n\n"
     )

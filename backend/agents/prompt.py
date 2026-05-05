@@ -2,11 +2,13 @@
 
 from agents.spec_loader import load_prompt_spec
 from config.app_config import get_app_config
+from subagents.registry import get_department_configs
 
 CHAIRMAN_PLAN_SCHEMA = """
 ## `chairman_plan` contract
 - `chairman_plan` must be a JSON object.
-- Keys may only be selected worker IDs from: `dom`, `pln`, `ana`, `cpy`.
+- Pass `chairman_plan` to the tool as an object, not as a string containing JSON.
+- Keys may only be selected worker IDs from the dynamic worker roster shown above.
 - Never include `crt` in `chairman_plan`; critic review is automatic in phase 2.
 - Each value must be a full structured task packet with these fields:
   `objective`, `task`, `context`, `constraints`, `required_output`,
@@ -14,9 +16,15 @@ CHAIRMAN_PLAN_SCHEMA = """
 - Do not emit empty tasks or placeholder tasks.
 - `requested_skill_packs` must be a subset of the selected worker's registered skill packs.
 
+## `selection_rationale` contract
+- Whenever you call `delegate_to_departments`, you must also send `selection_rationale` as an object.
+- `task_domains` is free text chosen by you, not a fixed enum.
+- It must contain: `task_summary`, `task_domains`, `selected_workers`, `why_selected`, and optional `why_not_selected`.
+- `selected_workers` must exactly match the keys in `chairman_plan`.
+- `why_selected` must explain every selected worker.
+
 ## `checklist_draft` contract
-- Whenever you call `delegate_to_departments`, you must also send `checklist_draft` as JSON.
-- `checklist_draft` must be a JSON array of checklist items.
+- Whenever you call `delegate_to_departments`, you must also send `checklist_draft` as an array of checklist items.
 - Each checklist item must include: `item_id`, `title`, `owner`, `depends_on`.
 - The first checklist item must belong to `orc`.
 - The last checklist item must belong to `orc`.
@@ -25,60 +33,37 @@ CHAIRMAN_PLAN_SCHEMA = """
 - Keep the draft compact: normally 3-8 items.
 
 ## `checklist_self_check` contract
-- Whenever you call `delegate_to_departments`, you must also send `checklist_self_check` as JSON.
+- Whenever you call `delegate_to_departments`, you must also send `checklist_self_check` as an object.
 - It must contain: `passed`, `issues`, `fixes`, `selected_workers`.
 - Only send `passed=true` if the checklist fully covers routing, execution, verification, and final delivery.
 - `selected_workers` must exactly match the workers in `chairman_plan`.
 - If the self-check finds issues, fix the checklist before calling the tool.
 """.strip()
 
+def _worker_roster_block(departments_description: str, critic_description: str) -> str:
+    return f"""
+## Dynamic worker roster
+Selectable workers:
+{departments_description}
+
+Automatic critic:
+{critic_description or '- none'}
+
+Only IDs listed under selectable workers may be used as `chairman_plan` keys.
+""".strip()
+
 ROUTING_POLICY = """
-## Routing policy
-You must classify the user request before choosing workers.
+## Worker selection policy
+You choose workers yourself from the dynamic roster.
 
-1. `direct_answer`
-Use no workers for greetings, tiny chit-chat, or very simple Q&A.
-
-2. `quality_risk`
-Triggers: fabric, material, workmanship, fit, wearing comfort, complaints, returns, defects, shrinkage, wrinkling, pilling, transparency, colorfastness.
-Allowed workers: `dom`, `pln`
-Required worker: `dom`
-Worker cap: 2
-
-3. `planning`
-Triggers: planning, SKU, launch rhythm, wave, assortment, series structure, development schedule.
-Allowed workers: `pln`, `dom`
-Required worker: `pln`
-Worker cap: 2
-
-4. `finance`
-Triggers: cost, margin, profit, pricing, target price, budget, commercial feasibility.
-Allowed workers: `ana`, `pln`
-Required worker: `ana`
-Worker cap: 2
-
-5. `copywriting`
-Triggers: selling points, copy, campaign wording, product page wording, communication, slogan.
-Allowed workers: `cpy`, `pln`
-Required worker: `cpy`
-Worker cap: 2
-
-6. `integrated_review`
-Triggers: full proposal review, cross-functional review, go/no-go decision, complete launch package.
-Allowed workers: `dom`, `pln`, `ana`, `cpy`
-Worker cap: 4
-
-7. `mixed`
-If the question clearly spans two domains, keep only the necessary union of workers and cap at 3.
-
-Default fallback:
-If uncertain, prefer `quality_risk` style routing: start from `dom`, add `pln` only if needed.
-
-Hard routing guidance:
-- For complaint/return-risk analysis, default to `dom`, optionally `pln`.
-- Do not call `ana` unless the user clearly asks about cost, pricing, margin, or business tradeoffs.
-- Do not call `cpy` unless the user clearly asks for customer-facing expression, selling points, or marketing language.
-- Do not pull all workers just because they are enabled in the UI.
+- Use no workers for greetings, tiny chit-chat, or very simple Q&A.
+- Select only workers that add necessary, non-overlapping value to the user goal.
+- Do not broadcast to all workers just because they exist.
+- Long or multi-domain tasks may use many workers when each has a distinct responsibility.
+- Newly added workers in the roster are valid candidates when their description or skill packs directly match the task.
+- `crt` is not a selectable worker; critic review runs automatically after worker execution.
+- If two workers seem similar, choose the one whose description best matches the requested deliverable.
+- Every selected worker needs a concrete task packet that could stand alone without the full conversation.
 """.strip()
 
 GLOBAL_ORCHESTRATION_RULES = """
@@ -87,6 +72,7 @@ GLOBAL_ORCHESTRATION_RULES = """
 - You decide whether to call workers; the UI toggles are not binding.
 - Workers do not see the full user conversation. Your task packet must contain the necessary context, constraints, and output requirements.
 - Prefer the smallest useful worker set.
+- For large tasks, use as many workers as are genuinely necessary; precision matters more than a fixed worker cap.
 - Checklist creation is your responsibility: draft the execution checklist before delegation.
 - Treat checklist generation as part of orchestration, not as a UI-only artifact.
 - If tool validation fails, correct the routing, checklist, or packet and try again.
@@ -96,11 +82,9 @@ GLOBAL_ORCHESTRATION_RULES = """
 
 FAILURE_RECOVERY_RULES = """
 ## Pre-flight checklist
-- Confirm the request category and the matching routing policy.
-- Confirm `chairman_plan` is valid JSON.
-- Confirm selected workers stay inside the route's allowed set.
-- Confirm required workers for the route are included.
-- Confirm worker count does not exceed the route cap.
+- Confirm your `selection_rationale` explains the task domains and worker choices.
+- Confirm `chairman_plan` is a structured object with worker IDs as keys.
+- Confirm `selection_rationale.selected_workers` exactly matches `chairman_plan` keys.
 - Confirm `crt` is not in `chairman_plan`.
 - Confirm `checklist_draft` covers intake, execution, verification, and final delivery.
 - Confirm `checklist_self_check` passes and matches the selected workers.
@@ -118,7 +102,7 @@ LEAD_OUTPUT_CONTRACT = """
 def build_lead_system_prompt() -> str:
     """Build the lead agent's system prompt with department descriptions."""
     config = get_app_config()
-    departments = config.get_enabled_departments()
+    departments = get_department_configs()
 
     worker_depts = [d for d in departments if d.id != 'crt']
     dept_lines = [
@@ -160,6 +144,7 @@ For simple greetings or tiny Q&A, answer directly without delegation.
     )
     return "\n\n".join([
         rendered.strip(),
+        _worker_roster_block(departments_description, critic_description),
         CHAIRMAN_PLAN_SCHEMA,
         ROUTING_POLICY,
         GLOBAL_ORCHESTRATION_RULES,
