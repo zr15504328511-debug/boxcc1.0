@@ -13,6 +13,7 @@ import {
   startRun,
 } from '@/adapter/graphAdapter';
 import { emptyRunGraph, nodeIdFor, type RunGraph } from '@/adapter/runGraph';
+import { DEFAULT_BOOKMARK_COLORS } from '@/theme/tokens';
 import { api } from './ipcBridge';
 
 interface SessionGraphState {
@@ -31,6 +32,9 @@ interface State {
 
   // graph state, keyed by session id
   graphsBySession: Record<string, SessionGraphState>;
+
+  // bookmark color customization (per agent id, persisted to local state)
+  bookmarkColors: Record<string, string>;
 
   // ui
   inspectorNodeId: string | null;
@@ -52,6 +56,7 @@ interface State {
   saveAgents: (next: AgentSpec[]) => Promise<void>;
   setNodePosition: (nodeId: string, pos: { x: number; y: number }) => void;
   refreshModelsFor: (profileId: string) => Promise<void>;
+  setBookmarkColor: (agentId: string, hex: string) => void;
 }
 
 const defaultGraphState: SessionGraphState = { graph: emptyRunGraph(), positions: {} };
@@ -76,6 +81,7 @@ export const useSessionStore = create<State>((set, get) => ({
   activeProfileId: null,
   providers: [],
   graphsBySession: {},
+  bookmarkColors: { ...DEFAULT_BOOKMARK_COLORS },
   inspectorNodeId: null,
   drawer: null,
   status: 'idle',
@@ -106,6 +112,8 @@ export const useSessionStore = create<State>((set, get) => ({
         : { ...defaultGraphState };
     }
 
+    const persistedColors = (state as any).bookmarkColors as Record<string, string> | undefined;
+
     set({
       sessions,
       activeSessionId: activeId,
@@ -114,6 +122,7 @@ export const useSessionStore = create<State>((set, get) => ({
       profiles: profiles || state.profiles || [],
       activeProfileId: state.activeProfileId || profiles?.[0]?.id || null,
       graphsBySession,
+      bookmarkColors: { ...DEFAULT_BOOKMARK_COLORS, ...(persistedColors || {}) },
     });
   },
 
@@ -252,6 +261,11 @@ export const useSessionStore = create<State>((set, get) => ({
     void persistState(get);
   },
 
+  setBookmarkColor: (agentId, hex) => {
+    set((s) => ({ bookmarkColors: { ...s.bookmarkColors, [agentId]: hex } }));
+    void persistState(get);
+  },
+
   refreshModelsFor: async (profileId: string) => {
     const profile = get().profiles.find((p) => p.id === profileId);
     if (!profile) return;
@@ -310,7 +324,7 @@ async function persistSessions(get: () => State) {
 }
 
 async function persistState(get: () => State) {
-  const { sessions, activeSessionId, profiles, activeProfileId, agents, graphsBySession } = get();
+  const { sessions, activeSessionId, profiles, activeProfileId, agents, graphsBySession, bookmarkColors } = get();
   const enriched = sessions.map((s) => ({
     ...s,
     graphSnapshot: graphsBySession[s.id] || null,
@@ -322,7 +336,8 @@ async function persistState(get: () => State) {
     profiles,
     activeProfileId,
     agents,
-  });
+    bookmarkColors,
+  } as any);
 }
 
 export const selectActiveGraph = (s: State): RunGraph =>

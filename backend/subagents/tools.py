@@ -321,13 +321,19 @@ async def delegate_to_departments(
         )
         await emit_checklist_sync(state)
 
+    checklist_validation_summary = '清单结构和部门选择已通过校验，可以开始分发执行。'
+    if not validated_self_check.passed:
+        warning = '; '.join(validated_self_check.issues or []) or '自校验未通过，已按规范结果继续执行。'
+        fixes = '; '.join(validated_self_check.fixes or [])
+        checklist_validation_summary = f'清单结构已通过硬校验，自校验提示：{warning}' + (f'。建议修正：{fixes}' if fixes else '')
+
     await emit_run_step(
         step_id='orc_checklist_validation',
         phase='orc',
         agent_id='orc',
         status='completed',
-        title='?????????????',
-        summary=_clean_inline('Checklist draft passed schema and self-check validation; ready to dispatch workers.', limit=110),
+        title='执行清单已完成校验',
+        summary=_clean_inline(checklist_validation_summary, limit=110),
         meta={'selected_workers': selected_ids, 'checklist_items': [item.model_dump() for item in validated_checklist], 'checklist_self_check': validated_self_check.model_dump()},
     )
     await emit_run_step(step_id='orc_selected_workers', phase='orc', agent_id='orc', status='completed', title=_build_selected_worker_title(selected_ids, worker_map), summary=_build_selected_worker_summary(tasks, routing_policy), meta={'selected_workers': selected_ids, 'route': routing_policy.category, 'checklist_items': [item.model_dump() for item in validated_checklist], 'checklist_self_check': validated_self_check.model_dump()})
@@ -345,8 +351,8 @@ async def delegate_to_departments(
             phase='critic',
             agent_id='crt',
             status='running',
-            title='?????????',
-            summary='???? worker ?????????????????????',
+            title='质检部开始统一验证',
+            summary='正在审查各部门输出之间的冲突、遗漏、风险和交付可用性。',
             meta={'review_round': 1, 'selected_workers': selected_ids},
         )
         if session_id:
@@ -378,7 +384,7 @@ async def delegate_to_departments(
             phase='critic',
             agent_id='crt',
             status='completed' if critic_result.status == 'completed' else 'failed',
-            title='?????????',
+            title='质检部完成首轮验证',
             summary=_clean_inline(validation_report.summary or critic_result.content or critic_result.error or critic_result.status, limit=120),
             meta={'review_round': 1, 'pass_gate': validation_report.pass_gate},
         )
@@ -417,7 +423,7 @@ async def delegate_to_departments(
                     phase='orc',
                     agent_id='orc',
                     status='running',
-                    title='?????????????',
+                    title='主席团开始安排返工',
                     summary=_clean_inline('; '.join(f'{owner}: {feedback}' for owner, feedback in rework_pairs), limit=120),
                     meta={'rework_targets': [owner for owner, _ in rework_pairs]},
                 )
@@ -441,8 +447,8 @@ async def delegate_to_departments(
                     phase='orc',
                     agent_id='orc',
                     status='completed',
-                    title='???????????????',
-                    summary='???????????????????',
+                    title='主席团已下发返工任务',
+                    summary='被点名的部门正在根据质检意见修正结果。',
                     meta={'rework_targets': [owner for owner, _ in rework_pairs]},
                 )
                 rework_output_parts, rework_department_results = _build_worker_output_sections(rework_results, tasks, worker_map)
@@ -456,8 +462,8 @@ async def delegate_to_departments(
                     phase='critic',
                     agent_id='crt',
                     status='running',
-                    title='???????????',
-                    summary='??????????????????????',
+                    title='质检部正在复审返工结果',
+                    summary='正在检查返工后的结果是否已经达到可交付标准。',
                     meta={'review_round': 2, 'rework_targets': [owner for owner, _ in rework_pairs]},
                 )
                 critic_result = await run_single_department(
@@ -480,7 +486,7 @@ async def delegate_to_departments(
                     phase='critic',
                     agent_id='crt',
                     status='completed' if critic_result.status == 'completed' else 'failed',
-                    title='???????',
+                    title='质检部完成复审',
                     summary=_clean_inline(validation_report.summary or critic_result.content or critic_result.error or critic_result.status, limit=120),
                     meta={'review_round': 2, 'pass_gate': validation_report.pass_gate},
                 )
@@ -521,6 +527,6 @@ async def delegate_to_departments(
         )
         await emit_checklist_sync(state)
 
-    await emit_run_step(step_id='orc_finalizing', phase='final', agent_id='orc', status='running', title='????????????????', summary='????????????????????????????????????', meta={'selected_workers': selected_ids, 'validation_gate': validation_report.pass_gate if validation_report else 'unknown'})
+    await emit_run_step(step_id='orc_finalizing', phase='final', agent_id='orc', status='running', title='主席团正在整合验证结论并生成最终答复', summary='正在吸收各部门结论和质检意见，整理给用户的最终结果。', meta={'selected_workers': selected_ids, 'validation_gate': validation_report.pass_gate if validation_report else 'unknown'})
     artifact = {'user_question': user_question, 'routing_policy': asdict(routing_policy), 'chairman_plan': {dept_id: packet.model_dump() for dept_id, packet in tasks.items()}, 'checklist_draft': [item.model_dump() for item in validated_checklist], 'checklist_self_check': validated_self_check.model_dump(), 'validation_report': validation_report.model_dump() if validation_report else None, 'selected_workers': selected_ids, 'department_results': department_results}
     return content, artifact

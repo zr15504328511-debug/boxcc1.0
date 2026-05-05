@@ -53,7 +53,7 @@ class TitleMiddleware(AgentMiddleware[TitleMiddlewareState]):
 
     def _fallback_title(self, user_msg: str, max_chars: int) -> str:
         if not user_msg:
-            return "???"
+            return "未命名任务"
         truncated = user_msg[:max_chars]
         if len(user_msg) > max_chars and max_chars > 3:
             truncated = user_msg[: max_chars - 3] + "..."
@@ -92,7 +92,7 @@ class TitleMiddleware(AgentMiddleware[TitleMiddlewareState]):
             logger.exception("Failed to generate title")
             title = self._fallback_title(user_msg, max_chars)
 
-        return {"title": title or "???"}
+        return {"title": title or "未命名任务"}
 
     async def _agenerate(self, state: TitleMiddlewareState) -> dict | None:
         if not self._should_generate(state):
@@ -111,7 +111,7 @@ class TitleMiddleware(AgentMiddleware[TitleMiddlewareState]):
             logger.exception("Failed to generate title")
             title = self._fallback_title(user_msg, max_chars)
 
-        return {"title": title or "???"}
+        return {"title": title or "未命名任务"}
 
     @override
     def after_model(self, state, runtime):

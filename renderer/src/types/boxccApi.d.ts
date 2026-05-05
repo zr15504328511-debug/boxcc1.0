@@ -77,10 +77,15 @@ export interface StreamEvent {
   step_id?: string;
   phase?: 'orc' | 'worker' | 'critic' | 'final';
   agent_id?: string;
-  status?: 'running' | 'completed' | 'failed' | 'pending';
+  node_id?: string;
+  status?: 'running' | 'completed' | 'failed' | 'pending' | 'timed_out' | 'reworking' | 'needs_rework' | 'validated';
   title?: string;
   summary?: string;
   meta?: Record<string, unknown>;
+  content?: string;
+  task_packet?: any;
+  available_skill_packs?: string[];
+  is_rework?: boolean;
   elapsed_ms?: number;
   task_type?: string;
   last_run_status?: string;

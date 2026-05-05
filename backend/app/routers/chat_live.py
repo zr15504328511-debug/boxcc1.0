@@ -228,13 +228,17 @@ async def _stream_chat(req: ChatRequest):
                 state = update_checklist_item(req.session_id, 'orc_final', status='done', result_preview=message.get('content', ''))
                 await emit_checklist_sync(state)
             await emit_run_step(step_id='orc_finalizing', phase='final', agent_id='orc', status='completed', title='主席团已完成整合，准备返回结果', summary='最终答案已经准备就绪，正在发送给用户。')
-            for chunk in _chunk_text(message.get('content', '')):
+            final_content = message.get('content', '')
+            for chunk in _chunk_text(final_content):
                 await queue.put({'type': 'answer_delta', 'message_id': message_id, 'delta': chunk})
+                await queue.put({'type': 'node_output_delta', 'message_id': message_id, 'node_id': 'final:answer', 'step_id': 'orc_final_answer', 'phase': 'final', 'agent_id': 'orc', 'delta': chunk})
+            await queue.put({'type': 'node_output_done', 'message_id': message_id, 'node_id': 'final:answer', 'step_id': 'orc_final_answer', 'phase': 'final', 'agent_id': 'orc', 'status': 'completed', 'content': final_content, 'error': None})
             await queue.put({'type': 'done', 'message_id': message_id, 'message': message, 'title': title, 'department_results': department_results, 'workflow_artifact': workflow_artifact})
         except Exception as exc:
             logger.error('Stream error: %s', exc, exc_info=True)
             state = update_checklist_item(req.session_id, 'orc_final', status='failed', result_preview=str(exc))
             await emit_checklist_sync(state)
+            await queue.put({'type': 'node_output_done', 'message_id': message_id, 'node_id': 'final:answer', 'step_id': 'orc_final_answer', 'phase': 'final', 'agent_id': 'orc', 'status': 'failed', 'content': '', 'error': str(exc)})
             await queue.put({'type': 'error', 'message_id': message_id, 'error': str(exc)})
         finally:
             reset_event_emitter(tokens)

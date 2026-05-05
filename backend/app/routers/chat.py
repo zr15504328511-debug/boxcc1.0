@@ -237,13 +237,17 @@ async def _stream_chat(req: ChatRequest):
             state = update_checklist_item(req.session_id, 'orc_final', status='done', result_preview=message.get('content', ''))
             await emit_checklist_sync(state)
             await emit_run_step(step_id='orc_finalizing', phase='final', agent_id='orc', status='completed', title='\u4e3b\u5e2d\u56e2\u5df2\u5b8c\u6210\u6574\u5408\uff0c\u51c6\u5907\u8fd4\u56de\u7ed3\u679c', summary='\u6700\u7ec8\u7b54\u6848\u5df2\u7ecf\u51c6\u5907\u5c31\u7eea\uff0c\u6b63\u5728\u53d1\u9001\u7ed9\u7528\u6237\u3002')
-            for chunk in _chunk_text(message.get('content', '')):
+            final_content = message.get('content', '')
+            for chunk in _chunk_text(final_content):
                 await queue.put({'type': 'answer_delta', 'message_id': message_id, 'delta': chunk})
+                await queue.put({'type': 'node_output_delta', 'message_id': message_id, 'node_id': 'final:answer', 'step_id': 'orc_final_answer', 'phase': 'final', 'agent_id': 'orc', 'delta': chunk})
+            await queue.put({'type': 'node_output_done', 'message_id': message_id, 'node_id': 'final:answer', 'step_id': 'orc_final_answer', 'phase': 'final', 'agent_id': 'orc', 'status': 'completed', 'content': final_content, 'error': None})
             await queue.put({'type': 'done', 'message_id': message_id, 'message': message, 'title': title, 'department_results': department_results, 'workflow_artifact': workflow_artifact, 'checklist': [item.model_dump() for item in state.execution_checklist]})
         except Exception as exc:
             logger.error('Stream error: %s', exc, exc_info=True)
             state = update_checklist_item(req.session_id, 'orc_final', status='failed', result_preview=str(exc))
             await emit_checklist_sync(state)
+            await queue.put({'type': 'node_output_done', 'message_id': message_id, 'node_id': 'final:answer', 'step_id': 'orc_final_answer', 'phase': 'final', 'agent_id': 'orc', 'status': 'failed', 'content': '', 'error': str(exc)})
             await queue.put({'type': 'error', 'message_id': message_id, 'error': str(exc)})
         finally:
             reset_event_emitter(tokens)

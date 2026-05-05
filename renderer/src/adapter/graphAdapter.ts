@@ -4,6 +4,8 @@
 // 后端字段约定（见 backend/runtime_events.py / backend/app/routers/chat.py）：
 //   run_step:        { phase: 'orc'|'worker'|'critic'|'final', agent_id, step_id, status, title, summary, meta }
 //   checklist_sync:  { selected_workers, checklist[] }
+//   node_task_packet:{ node_id, agent_id, task_packet, available_skill_packs, is_rework }
+//   node_output_*:   { node_id, agent_id, delta/content, status, error }
 //   answer_delta:    { delta }
 //   done:            { message, department_results[], workflow_artifact, checklist }
 //   error:           { error }
@@ -51,6 +53,10 @@ function statusFromEventStatus(s?: string): RunNodeStatus {
   if (s === 'running') return 'running';
   if (s === 'completed') return 'completed';
   if (s === 'failed') return 'failed';
+  if (s === 'timed_out') return 'timed_out';
+  if (s === 'reworking') return 'reworking';
+  if (s === 'needs_rework') return 'needs_rework';
+  if (s === 'validated') return 'validated';
   if (s === 'pending') return 'idle';
   return 'idle';
 }
@@ -123,6 +129,12 @@ export function applyEvent(prev: RunGraph, ev: StreamEvent): RunGraph {
       return handleRunStep(graph, ev);
     case 'checklist_sync':
       return handleChecklistSync(graph, ev);
+    case 'node_task_packet':
+      return handleNodeTaskPacket(graph, ev);
+    case 'node_output_delta':
+      return handleNodeOutputDelta(graph, ev);
+    case 'node_output_done':
+      return handleNodeOutputDone(graph, ev);
     case 'answer_delta':
       return handleAnswerDelta(graph, ev);
     case 'done':
@@ -132,6 +144,128 @@ export function applyEvent(prev: RunGraph, ev: StreamEvent): RunGraph {
     default:
       return graph;
   }
+}
+
+function normalizeEventNodeId(ev: StreamEvent): string | null {
+  if (ev.node_id === 'final:answer') return nodeIdFor.final();
+  if (ev.node_id) return ev.node_id;
+  if (ev.phase === 'worker' && ev.agent_id) return nodeIdFor.worker(ev.agent_id);
+  if (ev.phase === 'critic') return nodeIdFor.critic(ev.agent_id || 'crt');
+  if (ev.phase === 'final') return nodeIdFor.final();
+  if (ev.agent_id === 'orc') return nodeIdFor.orc();
+  return null;
+}
+
+function ensureEventNode(graph: RunGraph, ev: StreamEvent): string | null {
+  const nodeId = normalizeEventNodeId(ev);
+  if (!nodeId) return null;
+  if (graph.nodes[nodeId]) return nodeId;
+
+  if (nodeId.startsWith('worker:')) {
+    const agentId = ev.agent_id || nodeId.slice('worker:'.length);
+    graph.nodes[nodeId] = {
+      id: nodeId,
+      type: 'worker',
+      agentId,
+      title: workerDisplayName(agentId),
+      status: 'idle',
+      streamLog: [],
+    };
+    const orcId = nodeIdFor.orc();
+    if (graph.nodes[orcId]) {
+      ensureEdge(graph, {
+        id: `${orcId}->${nodeId}`,
+        source: orcId,
+        target: nodeId,
+        type: 'task_packet',
+        status: 'active',
+        label: '任务包',
+      });
+    }
+    return nodeId;
+  }
+
+  if (nodeId.startsWith('critic:')) {
+    const agentId = ev.agent_id || 'crt';
+    graph.nodes[nodeId] = {
+      id: nodeId,
+      type: 'critic',
+      agentId,
+      title: workerDisplayName(agentId),
+      status: 'idle',
+      streamLog: [],
+    };
+    for (const wid of Object.keys(graph.nodes)) {
+      if (graph.nodes[wid].type !== 'worker') continue;
+      ensureEdge(graph, {
+        id: `${wid}->${nodeId}`,
+        source: wid,
+        target: nodeId,
+        type: 'worker_output',
+        status: 'active',
+        label: '输出送审',
+      });
+    }
+    return nodeId;
+  }
+
+  if (nodeId === nodeIdFor.final()) {
+    graph.nodes[nodeId] = {
+      id: nodeId,
+      type: 'artifact',
+      title: '最终交付',
+      status: 'running',
+      streamLog: [],
+      latestOutput: '',
+    };
+    return nodeId;
+  }
+
+  return nodeId;
+}
+
+function handleNodeTaskPacket(graph: RunGraph, ev: StreamEvent): RunGraph {
+  const nodeId = ensureEventNode(graph, ev);
+  if (!nodeId || graph.nodes[nodeId].type === 'artifact') return graph;
+  setNode(graph, nodeId, {
+    status: statusFromEventStatus(ev.status),
+    taskPacket: ev.task_packet as WorkerTaskPacket | undefined,
+    meta: {
+      ...(graph.nodes[nodeId].meta || {}),
+      available_skill_packs: ev.available_skill_packs || [],
+      is_rework: Boolean(ev.is_rework),
+    },
+  });
+  return graph;
+}
+
+function handleNodeOutputDelta(graph: RunGraph, ev: StreamEvent): RunGraph {
+  const nodeId = ensureEventNode(graph, ev);
+  if (!nodeId || nodeId === nodeIdFor.final()) return graph;
+  const node = graph.nodes[nodeId];
+  setNode(graph, nodeId, {
+    status: node.status === 'idle' ? 'running' : node.status,
+    latestOutput: (node.latestOutput || '') + (ev.delta || ''),
+  });
+  return graph;
+}
+
+function handleNodeOutputDone(graph: RunGraph, ev: StreamEvent): RunGraph {
+  const nodeId = ensureEventNode(graph, ev);
+  if (!nodeId || nodeId === nodeIdFor.final()) return graph;
+  const status = statusFromEventStatus(ev.status);
+  setNode(graph, nodeId, {
+    status,
+    latestOutput: ev.content || graph.nodes[nodeId].latestOutput,
+    errorMessage: ev.error,
+  });
+  for (const eid of Object.keys(graph.edges)) {
+    const edge = graph.edges[eid];
+    if ((edge.source === nodeId || edge.target === nodeId) && edge.status === 'active') {
+      setEdge(graph, eid, { status: status === 'failed' || status === 'timed_out' ? 'failed' : 'done' });
+    }
+  }
+  return graph;
 }
 
 function handleRunStep(graph: RunGraph, ev: StreamEvent): RunGraph {
