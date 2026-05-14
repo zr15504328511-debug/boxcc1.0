@@ -1,13 +1,13 @@
 const fs = require('fs');
 const { app, BrowserWindow, Menu, clipboard, ipcMain } = require('electron');
 const path = require('path');
-const { spawn } = require('child_process');
+const { spawn, spawnSync } = require('child_process');
 const http = require('http');
 const { loadState, saveState } = require('./main/services/stateService');
 const { listSessions, saveSessions, createSession } = require('./main/services/sessionService');
 const { listProfiles, saveProfiles } = require('./main/services/profileRegistryService');
 const { listAgents, saveAgents } = require('./main/services/agentService');
-const { SUPPORTED_PROVIDERS, validateProfile, fetchModelsForProfile } = require('./main/services/providerResolverService');
+const { listProviderSpecs, validateProfile, fetchModelsForProfile } = require('./main/services/providerResolverService');
 
 const PYTHON_BACKEND_PORT = 18900;
 const PYTHON_BACKEND_URL = `http://127.0.0.1:${PYTHON_BACKEND_PORT}`;
@@ -17,6 +17,65 @@ const BACKEND_REQUEST_TIMEOUT = 1800000;
 
 let pythonProcess = null;
 let backendStartupPromise = null;
+
+function getPythonCandidates() {
+  const candidates = [
+    { command: path.join(__dirname, '.venv', 'bin', 'python'), args: [], source: 'project virtualenv' },
+    { command: path.join(__dirname, '.venv', 'Scripts', 'python.exe'), args: [], source: 'project virtualenv' },
+  ];
+  if (process.env.BOXCC_PYTHON) {
+    candidates.push({ command: process.env.BOXCC_PYTHON, args: [], source: 'BOXCC_PYTHON' });
+  }
+
+  if (process.platform === 'win32') {
+    candidates.push(
+      { command: 'python', args: [], source: 'PATH' },
+      { command: 'py', args: ['-3'], source: 'Python launcher' },
+    );
+  } else if (process.platform === 'darwin') {
+    candidates.push(
+      { command: '/opt/homebrew/bin/python3', args: [], source: 'Homebrew Apple Silicon' },
+      { command: '/opt/homebrew/bin/python3.12', args: [], source: 'Homebrew Apple Silicon' },
+      { command: '/opt/homebrew/opt/python@3.12/bin/python3.12', args: [], source: 'Homebrew python@3.12' },
+      { command: '/usr/local/bin/python3', args: [], source: 'Homebrew Intel' },
+      { command: '/usr/local/bin/python3.12', args: [], source: 'Homebrew Intel' },
+      { command: '/usr/local/opt/python@3.12/bin/python3.12', args: [], source: 'Homebrew python@3.12' },
+      { command: '/Library/Frameworks/Python.framework/Versions/Current/bin/python3', args: [], source: 'python.org framework' },
+      { command: 'python3.12', args: [], source: 'PATH' },
+      { command: 'python3', args: [], source: 'PATH' },
+      { command: 'python', args: [], source: 'PATH' },
+    );
+  } else {
+    candidates.push(
+      { command: 'python3', args: [], source: 'PATH' },
+      { command: 'python', args: [], source: 'PATH' },
+    );
+  }
+
+  return candidates;
+}
+
+function resolvePythonCommand() {
+  for (const candidate of getPythonCandidates()) {
+    const result = spawnSync(candidate.command, [
+      ...candidate.args,
+      '-c',
+      'import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)',
+    ], { stdio: 'ignore' });
+
+    if (result.status === 0) {
+      safeLog('log', `[Python] Using ${candidate.command} (${candidate.source})`);
+      return candidate;
+    }
+  }
+
+  throw new Error('Python 3.11+ was not found. Install Python 3.11+ or set BOXCC_PYTHON to its executable path.');
+}
+
+function getBackendDir() {
+  if (!app.isPackaged) return path.join(__dirname, 'backend');
+  return path.join(process.resourcesPath, 'app.asar.unpacked', 'backend');
+}
 
 function safeLog(method, ...args) {
   const line = [new Date().toISOString(), method.toUpperCase(), ...args]
@@ -29,10 +88,18 @@ function safeLog(method, ...args) {
 }
 
 function startPythonBackend() {
-  const backendDir = path.join(__dirname, 'backend');
-  pythonProcess = spawn('python', ['-m', 'app.main'], {
+  const backendDir = getBackendDir();
+  const python = resolvePythonCommand();
+  const backendDataDir = getBackendDataDir();
+  mirrorAgentsForBackend(listAgents());
+
+  pythonProcess = spawn(python.command, [...python.args, '-m', 'app.main'], {
     cwd: backendDir,
-    env: { ...process.env, PYTHONUNBUFFERED: '1' },
+    env: {
+      ...process.env,
+      BOXCC_BACKEND_DATA_DIR: backendDataDir,
+      PYTHONUNBUFFERED: '1',
+    },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
 
@@ -44,6 +111,20 @@ function startPythonBackend() {
     pythonProcess = null;
   });
   return pythonProcess;
+}
+
+function getBackendDataDir() {
+  return path.join(app.getPath('userData'), 'backend-data');
+}
+
+function mirrorAgentsForBackend(agents) {
+  const backendDataDir = getBackendDataDir();
+  try {
+    fs.mkdirSync(backendDataDir, { recursive: true });
+    fs.writeFileSync(path.join(backendDataDir, 'agents.json'), JSON.stringify(Array.isArray(agents) ? agents : [], null, 2), 'utf8');
+  } catch (err) {
+    safeLog('warn', '[agents:save] Failed to mirror agents for backend:', err.message);
+  }
 }
 
 function isBackendHealthy(timeoutMs = 2000) {
@@ -293,7 +374,13 @@ function createWindow() {
     }, 1000);
   });
 
-  win.loadFile('index.html');
+  const devUrl = process.env.BOXCC_RENDERER_DEV_URL;
+  if (devUrl) {
+    win.loadURL(devUrl);
+    win.webContents.openDevTools({ mode: 'detach' });
+  } else {
+    win.loadFile(path.join(__dirname, 'dist', 'renderer', 'index.html'));
+  }
 }
 
 app.whenReady().then(async () => {
@@ -309,8 +396,12 @@ app.whenReady().then(async () => {
   ipcMain.handle('profiles:list', async () => listProfiles());
   ipcMain.handle('profiles:save', async (_event, payload) => saveProfiles(payload));
   ipcMain.handle('agents:list', async () => listEffectiveAgentsForUi());
-  ipcMain.handle('agents:save', async (_event, payload) => saveAgents(payload));
-  ipcMain.handle('providers:list', async () => SUPPORTED_PROVIDERS);
+  ipcMain.handle('agents:save', async (_event, payload) => {
+    const saved = saveAgents(payload);
+    mirrorAgentsForBackend(saved);
+    return saved;
+  });
+  ipcMain.handle('providers:list', async () => listProviderSpecs());
   ipcMain.handle('providers:validate-profile', async (_event, payload) => validateProfile(payload));
   ipcMain.handle('providers:list-models', async (_event, payload) => fetchModelsForProfile(payload));
   ipcMain.handle('clipboard:write-text', async (_event, payload) => { clipboard.writeText(String(payload || '')); return true; });

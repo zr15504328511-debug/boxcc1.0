@@ -1,11 +1,6 @@
-import importlib
-import sys
+"""Backend interpreter startup hooks.
 
-for legacy_name, live_name in [
-    ("subagents.executor", "subagents.executor_live"),
-    ("subagents.tools", "subagents.tools_live"),
-]:
-    try:
-        sys.modules[legacy_name] = importlib.import_module(live_name)
-    except Exception:
-        pass
+Keep this file intentionally inert. Historical live-module aliases made
+`subagents.tools` resolve to a different implementation depending on the
+Python startup path, which is dangerous for orchestration behavior.
+"""

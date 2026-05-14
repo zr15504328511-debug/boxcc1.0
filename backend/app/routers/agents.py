@@ -3,9 +3,9 @@
 from fastapi import APIRouter
 
 from agents.prompt import build_lead_system_prompt
-from config.app_config import get_app_config
 from subagents.config import SubagentConfig
 from subagents.prompt import build_department_system_prompt
+from subagents.registry import get_department_configs
 
 router = APIRouter()
 
@@ -27,7 +27,6 @@ def _as_subagent(agent) -> SubagentConfig:
 
 @router.get("/agents")
 async def list_agents():
-    config = get_app_config()
     agents = [{
         "id": "orc",
         "name": "主席团",
@@ -49,6 +48,6 @@ async def list_agents():
             "skill_packs": list(agent.skill_packs),
             "instructions": build_department_system_prompt(_as_subagent(agent)),
         }
-        for agent in config.departments.agents
+        for agent in get_department_configs()
     ])
     return agents

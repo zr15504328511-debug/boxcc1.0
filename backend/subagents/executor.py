@@ -16,7 +16,7 @@ from agents.middlewares.tool_error_middleware import ToolErrorMiddleware
 from agents.thread_state import ThreadState
 from config.app_config import get_app_config
 from models.factory import create_chat_model
-from runtime_events import current_session_id, emit_run_step
+from runtime_events import current_session_id, emit_event, emit_run_step
 from subagents.config import SubagentConfig
 from subagents.prompt import build_department_system_prompt
 from session.checklist import append_artifact, emit_checklist_sync, update_checklist_item, upsert_worker_shard
@@ -66,6 +66,60 @@ def _clean_inline(text: str | None, limit: int = 120) -> str:
     return cleaned[: max(0, limit - 3)].rstrip() + '...'
 
 
+def _chunk_text(text: str, chunk_size: int = 180) -> list[str]:
+    normalized = str(text or '')
+    if not normalized:
+        return []
+    return [normalized[index:index + chunk_size] for index in range(0, len(normalized), chunk_size)]
+
+
+def _node_id_for_department(dept: SubagentConfig) -> str:
+    phase = 'critic' if dept.id == 'crt' else 'worker'
+    return f'{phase}:{dept.id}'
+
+
+def _is_rework_step(step_suffix: str, packet: WorkerTaskPacket) -> bool:
+    return step_suffix.startswith('rework') or any(str(note).startswith('Critic feedback:') for note in packet.notes)
+
+
+async def _emit_node_task_packet(dept: SubagentConfig, packet: WorkerTaskPacket, *, step_id: str, phase: str, step_suffix: str) -> None:
+    await emit_event({
+        'type': 'node_task_packet',
+        'node_id': _node_id_for_department(dept),
+        'step_id': step_id,
+        'phase': phase,
+        'agent_id': dept.id,
+        'status': 'running',
+        'task_packet': packet.model_dump(),
+        'available_skill_packs': list(dept.skill_packs),
+        'is_rework': _is_rework_step(step_suffix, packet),
+    })
+
+
+async def _emit_node_output(dept: SubagentConfig, *, step_id: str, phase: str, content: str = '', error: str | None = None, status: str = 'completed') -> None:
+    node_id = _node_id_for_department(dept)
+    if content:
+        for chunk in _chunk_text(content):
+            await emit_event({
+                'type': 'node_output_delta',
+                'node_id': node_id,
+                'step_id': step_id,
+                'phase': phase,
+                'agent_id': dept.id,
+                'delta': chunk,
+            })
+    await emit_event({
+        'type': 'node_output_done',
+        'node_id': node_id,
+        'step_id': step_id,
+        'phase': phase,
+        'agent_id': dept.id,
+        'status': status,
+        'content': content,
+        'error': error,
+    })
+
+
 def _build_department_request(dept: SubagentConfig, packet: WorkerTaskPacket) -> str:
     rendered_packet = render_task_packet(packet, dept.skill_packs)
     return (
@@ -77,7 +131,7 @@ def _build_department_request(dept: SubagentConfig, packet: WorkerTaskPacket) ->
 
 def _build_department_running_title(dept: SubagentConfig, packet: WorkerTaskPacket, *, step_suffix: str = '') -> str:
     if step_suffix.startswith('rework'):
-        return f"{dept.display_name or dept.name}??????"
+        return f"{dept.display_name or dept.name}根据质检意见返工中"
     if dept.id == 'cpy' and 'ppt_outline' in packet.requested_skill_packs:
         return '\u5ba3\u4f20\u90e8\u6b63\u5728\u5236\u4f5cPPT\u7ed3\u6784'
     return _WORKER_RUNNING_TITLES.get(dept.id, f"{dept.display_name or dept.name}\u6b63\u5728\u6267\u884c\u4efb\u52a1")
@@ -115,7 +169,13 @@ async def _run_department(
         status='running',
         title=_build_department_running_title(dept, packet, step_suffix=step_suffix),
         summary=_build_department_running_summary(packet),
+        meta={
+            'task_packet': packet.model_dump(),
+            'available_skill_packs': list(dept.skill_packs),
+            'is_rework': _is_rework_step(step_suffix, packet),
+        },
     )
+    await _emit_node_task_packet(dept, packet, step_id=step_id, phase=phase, step_suffix=step_suffix)
 
     if session_id:
         state = upsert_worker_shard(
@@ -162,6 +222,7 @@ async def _run_department(
                 break
 
         result.status = 'completed'
+        await _emit_node_output(dept, step_id=step_id, phase=phase, content=result.content, status=result.status)
         await emit_run_step(
             step_id=step_id,
             phase=phase,
@@ -199,6 +260,7 @@ async def _run_department(
         logger.error('Department %s timed out after %ss', dept.name, timeout)
         result.status = 'timed_out'
         result.error = f'Timed out after {timeout}s'
+        await _emit_node_output(dept, step_id=step_id, phase=phase, error=result.error, status=result.status)
         await emit_run_step(
             step_id=step_id,
             phase=phase,
@@ -211,6 +273,7 @@ async def _run_department(
         logger.exception('Department %s failed', dept.name)
         result.status = 'failed'
         result.error = str(e)
+        await _emit_node_output(dept, step_id=step_id, phase=phase, error=result.error, status=result.status)
         await emit_run_step(
             step_id=step_id,
             phase=phase,

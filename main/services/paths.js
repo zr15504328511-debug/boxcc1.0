@@ -11,6 +11,7 @@ function getDataDir() {
 function getFilePaths() {
   const dataDir = getDataDir();
   return {
+    appState: path.join(dataDir, 'app-state.json'),
     sessions: path.join(dataDir, 'sessions.json'),
     agents: path.join(dataDir, 'agents.json'),
     profiles: path.join(dataDir, 'profiles.json'),

@@ -6,15 +6,61 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
+    "dev": "concurrently -k -n vite,electron -c blue,magenta \"npm:renderer:dev\" \"npm:electron:dev\"",
+    "renderer:dev": "vite -c renderer/vite.config.ts",
+    "renderer:build": "vite build -c renderer/vite.config.ts",
+    "electron:dev": "wait-on http://localhost:5173 && cross-env BOXCC_RENDERER_DEV_URL=http://localhost:5173 electron .",
+    "backend:install": "python3.12 -m venv .venv && .venv/bin/python -m pip install -e ./backend",
+    "prepack": "npm run renderer:build",
+    "predist": "npm run renderer:build",
     "pack": "electron-builder --dir",
     "dist": "electron-builder"
   },
   "devDependencies": {
+    "@types/dagre": "^0.7.52",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "concurrently": "^9.1.0",
+    "cross-env": "^7.0.3",
     "electron": "^31.0.0",
-    "electron-builder": "^24.13.3"
+    "electron-builder": "^24.13.3",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.7.2",
+    "vite": "^5.4.11",
+    "wait-on": "^8.0.1"
+  },
+  "dependencies": {
+    "@xyflow/react": "^12.3.5",
+    "dagre": "^0.8.5",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-markdown": "^9.0.1",
+    "zustand": "^5.0.2"
   },
   "build": {
     "appId": "com.boxcc.app",
+    "asar": true,
+    "asarUnpack": [
+      "backend/**"
+    ],
+    "files": [
+      "main.js",
+      "preload.js",
+      "main/**",
+      "backend/**",
+      "dist/renderer/**",
+      "package.json"
+    ],
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.productivity"
+    },
     "win": {
       "target": "nsis"
     }

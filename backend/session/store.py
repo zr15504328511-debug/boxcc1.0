@@ -5,6 +5,7 @@ import threading
 from pathlib import Path
 from typing import Callable
 
+from config.paths import get_data_dir
 from session.state import ChecklistItem, OrcSessionState
 
 
@@ -193,6 +194,6 @@ _STORE: SessionStore | None = None
 def get_session_store() -> SessionStore:
     global _STORE
     if _STORE is None:
-        path = Path(__file__).resolve().parents[1] / 'data' / 'orc_sessions.json'
+        path = get_data_dir() / 'orc_sessions.json'
         _STORE = SessionStore(path)
     return _STORE
