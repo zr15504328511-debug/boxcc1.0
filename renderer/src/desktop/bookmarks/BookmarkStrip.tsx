@@ -1,18 +1,23 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSessionStore } from '@/store/sessionStore';
 import { AgentBookmark } from './AgentBookmark';
 import { AddBookmarkSlot } from './AddBookmarkSlot';
+import { SweepEffectLayer } from './SweepEffectLayer';
 import { deriveRoster } from './agentRoster';
 
 const BOOKMARK_W = 58;
-const PEEK_VISIBLE = 8;             // 折叠时露出的色条宽度（px）
+const PEEK_VISIBLE = 8;
 const PEEK = BOOKMARK_W - PEEK_VISIBLE;
 const SLIDE_OUT_MS = 220;
-const SENSOR_W = 14;                // 屏幕右边缘的 hover 触发区宽度
+const SENSOR_W = 14;
 
 export function BookmarkStrip() {
   const agents = useSessionStore((s) => s.agents);
-  const roster = deriveRoster(agents);
+  const roster = useMemo(() => deriveRoster(agents), [agents]);
+  const rosterAgentIds = useMemo(
+    () => roster.map((e) => (e.kind === 'agent' ? e.spec.agentId : '__add__')),
+    [roster],
+  );
 
   const [hovered, setHovered] = useState(false);
   const [forceShow, setForceShow] = useState(false);
@@ -28,7 +33,7 @@ export function BookmarkStrip() {
 
   return (
     <>
-      {/* 屏幕右边缘 hover 触发区 — 折叠时 */}
+      {/* 屏幕右边缘 hover 触发区 */}
       {!expanded && (
         <div
           className="absolute top-0 right-0 bottom-0 z-[148]"
@@ -51,6 +56,9 @@ export function BookmarkStrip() {
         onMouseLeave={() => setHovered(false)}
         onMouseDown={(e) => e.stopPropagation()}
       >
+        {/* 扫光层 — 覆盖整个 strip，事件传递不影响 */}
+        <SweepEffectLayer rosterAgentIds={rosterAgentIds} />
+
         {roster.map((entry, i) => {
           if (entry.kind === 'agent') {
             return <AgentBookmark key={`a-${entry.spec.agentId}`} spec={entry.spec} />;

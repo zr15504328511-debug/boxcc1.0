@@ -43,6 +43,13 @@ export interface StreamLogEntry {
   status?: RunNodeStatus | 'pending';
   title?: string;
   summary?: string;
+  eventType?: string;
+  stepId?: string;
+  phase?: string;
+  agentId?: string;
+  isRework?: boolean;
+  passGate?: string;
+  reviewRound?: number;
 }
 
 export interface RunNode {

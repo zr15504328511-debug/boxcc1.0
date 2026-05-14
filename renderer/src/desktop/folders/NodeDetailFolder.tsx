@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useSessionStore, selectActiveGraph } from '@/store/sessionStore';
-import type { RunNode } from '@/adapter/runGraph';
+import type { RunNode, StreamLogEntry } from '@/adapter/runGraph';
 import { TaskPacketView } from '@/inspector/TaskPacketView';
 import { CritiqueView } from '@/inspector/CritiqueView';
 import { ArtifactPreview } from '@/inspector/ArtifactPreview';
@@ -133,9 +133,12 @@ function DecisionsTab({ node }: { node: RunNode }) {
   // Build narrative entries from streamLog, augmented with agent semantics.
   const entries = useMemo(() => {
     const items = (node.streamLog || []).map((e, i) => {
-      let kicker = e.title || labelFor(node, e);
-      let body = e.summary || (e.status ? statusBlurb(e.status, node) : '');
+      const kicker = timelineTitleFor(node, e);
+      const body = timelineBodyFor(node, e);
       return { ts: e.ts, kicker, body, idx: i };
+    }).filter((item, i, arr) => {
+      const prev = arr[i - 1];
+      return !prev || prev.kicker !== item.kicker || prev.body !== item.body;
     });
     // 末尾插入"已完成"或"失败"心跳
     if (node.status === 'completed') {
@@ -191,19 +194,66 @@ function DecisionItem({ ts, kicker, body, isLast }: { ts: number; kicker: string
   );
 }
 
-function labelFor(node: RunNode, _e: { status?: string; title?: string; summary?: string }): string {
+function timelineTitleFor(node: RunNode, e: StreamLogEntry): string {
+  const name = node.title;
+  const status = e.status;
+  const isRework = Boolean(e.isRework || e.stepId?.toLowerCase().includes('rework'));
+
+  if (node.type === 'worker') {
+    if (status === 'running') return isRework ? `${name}收到质检返工` : `${name}收到任务`;
+    if (status === 'completed' || status === 'validated') return isRework ? `${name}提交返工结果` : `${name}提交分析结果`;
+    if (status === 'reworking' || status === 'needs_rework') return `${name}等待返工处理`;
+    if (status === 'failed' || status === 'timed_out') return `${name}执行异常`;
+    return `${name}更新进展`;
+  }
+
+  if (node.type === 'critic') {
+    const isRecheck = e.reviewRound === 2 || e.stepId?.includes('phase_2');
+    const stage = isRecheck ? '复检' : '初审';
+    if (status === 'running') return `质检部开始${stage}`;
+    if (status === 'completed' || status === 'validated') {
+      const gate = gateLabel(e.passGate);
+      return gate ? `质检部给出${stage}结论：${gate}` : `质检部给出${stage}结论`;
+    }
+    if (status === 'needs_rework' || status === 'reworking') return '质检部要求返工';
+    if (status === 'failed' || status === 'timed_out') return '质检部审核异常';
+    return `质检部更新${stage}`;
+  }
+
+  if (node.type === 'orc') {
+    if (e.stepId === 'orc_selected_workers' || e.summary?.includes('selected workers')) return '主席团完成部门选择';
+    if (e.phase === 'final') return '主席团整合最终交付';
+    if (status === 'running') return '主席团分析任务';
+    if (status === 'completed') return '主席团完成编排';
+    return '主席团更新决策';
+  }
+
   switch (node.type) {
-    case 'orc':      return '主席团思考';
-    case 'worker':   return `${node.title} · 进展`;
-    case 'critic':   return '质检评估';
     case 'artifact': return '汇总输出';
     default:         return '事件';
   }
 }
 
+function gateLabel(gate?: string): string {
+  if (gate === 'passed') return '通过';
+  if (gate === 'fixes_required') return '需返工';
+  if (gate === 'failed') return '不通过';
+  return '';
+}
+
+function timelineBodyFor(node: RunNode, e: StreamLogEntry): string {
+  if (e.summary) return e.summary;
+  if (e.status) return statusBlurb(e.status, node);
+  return '';
+}
+
 function statusBlurb(status: string, node: RunNode): string {
   if (status === 'running') return `${node.title} 进入执行状态。`;
   if (status === 'completed') return `${node.title} 已完成本步骤。`;
+  if (status === 'reworking') return `${node.title} 正在根据质检意见修订。`;
+  if (status === 'needs_rework') return `${node.title} 收到质检返工要求。`;
+  if (status === 'validated') return `${node.title} 已通过质检确认。`;
+  if (status === 'timed_out') return `${node.title} 执行超时。`;
   if (status === 'failed') return `${node.title} 失败。`;
   return '';
 }

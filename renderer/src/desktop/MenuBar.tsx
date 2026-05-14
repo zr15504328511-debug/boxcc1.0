@@ -1,6 +1,5 @@
 import { useSessionStore } from '@/store/sessionStore';
 import { useWindowStore } from './window/windowStore';
-import { PacketTrayButton } from './PacketTrayButton';
 
 export function MenuBar() {
   const session = useSessionStore((s) => s.sessions.find((x) => x.id === s.activeSessionId));
@@ -43,13 +42,11 @@ export function MenuBar() {
 
       {/* 仅在出错时显示错误徽章 */}
       {status === 'error' && errorMessage && (
-        <div className="flex items-center gap-1.5 text-desk-danger px-2 py-0.5 rounded bg-desk-danger/10 border border-desk-danger/20 mr-1">
+        <div className="flex items-center gap-1.5 text-desk-danger px-2 py-0.5 rounded bg-desk-danger/10 border border-desk-danger/20">
           <span className="node-dot node-dot--failed" />
           <span className="truncate max-w-[280px]">{errorMessage}</span>
         </div>
       )}
-
-      <PacketTrayButton />
     </div>
   );
 }

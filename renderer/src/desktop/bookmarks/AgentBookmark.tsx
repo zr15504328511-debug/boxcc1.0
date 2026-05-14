@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useSessionStore, selectActiveGraph } from '@/store/sessionStore';
 import { useWindowStore } from '../window/windowStore';
 import { HoverStatusCard } from './HoverStatusCard';
@@ -23,6 +23,8 @@ function nodeIdFromSel(sel: BookmarkSpec['nodeIdSel']): string {
   return sel;
 }
 
+const COMPLETED_STATUSES = new Set(['completed', 'validated']);
+
 export function AgentBookmark({ spec }: { spec: BookmarkSpec }) {
   const graph = useSessionStore(selectActiveGraph);
   const colors = useSessionStore((s) => s.bookmarkColors);
@@ -33,13 +35,30 @@ export function AgentBookmark({ spec }: { spec: BookmarkSpec }) {
 
   const [hover, setHover] = useState(false);
   const [colorMenuRect, setColorMenuRect] = useState<{ right: number; top: number } | null>(null);
+  const [flashing, setFlashing] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const prevStatusRef = useRef<string | undefined>(undefined);
 
   const nodeId = nodeIdFromSel(spec.nodeIdSel);
   const node = graph.nodes[nodeId];
   const exists = !!node;
   const status = node?.status || 'idle';
   const dotClass = STATUS_DOT[status] || STATUS_DOT.idle;
+  const isRunning = exists && status === 'running';
+
+  // 完成时一次性闪光：从 non-completed → completed/validated 的边缘触发一次
+  useEffect(() => {
+    const prev = prevStatusRef.current;
+    if (prev !== status) {
+      if (status && COMPLETED_STATUSES.has(status) && (!prev || !COMPLETED_STATUSES.has(prev))) {
+        setFlashing(true);
+        const t = setTimeout(() => setFlashing(false), 750);
+        prevStatusRef.current = status;
+        return () => clearTimeout(t);
+      }
+      prevStatusRef.current = status;
+    }
+  }, [status]);
 
   const onClick = () => {
     if (!exists) return;
@@ -54,10 +73,17 @@ export function AgentBookmark({ spec }: { spec: BookmarkSpec }) {
     setColorMenuRect({ right: window.innerWidth - rect.left + 8, top: rect.top });
   };
 
+  const stripeClass = !exists
+    ? 'bookmark-stripe bookmark-stripe--idle'
+    : isRunning
+    ? 'bookmark-stripe bookmark-stripe--running'
+    : 'bookmark-stripe';
+
   return (
     <div
       ref={ref}
       className="relative"
+      data-bookmark-id={spec.agentId}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       onMouseDown={(e) => e.stopPropagation()}
@@ -68,28 +94,31 @@ export function AgentBookmark({ spec }: { spec: BookmarkSpec }) {
         onContextMenu={onContextMenu}
         disabled={!exists}
         title={exists ? `${spec.label} — 单击展开 · 右键改色` : `${spec.label}（本次未激活）`}
-        className={`relative flex flex-col items-center justify-center w-[58px] h-[58px] rounded-l-xl transition-all ${
+        className={`relative flex flex-col items-center justify-center w-[58px] h-[58px] rounded-l-xl transition-transform ${
           exists
             ? 'cursor-pointer hover:translate-x-[-4px]'
             : 'cursor-default opacity-35'
-        } ${detailOpen ? 'translate-x-[-6px]' : ''}`}
+        } ${detailOpen ? 'translate-x-[-6px]' : ''} ${flashing ? 'bookmark-flash' : ''}`}
         style={{
           background: exists
             ? `linear-gradient(180deg, ${color}E6, ${color}B3)`
             : 'rgba(255,255,255,0.04)',
           boxShadow: exists
-            ? `0 4px 14px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.18) inset, -3px 0 0 0 ${color}`
+            ? '0 4px 14px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.18) inset'
             : '0 0 0 1px rgba(255,255,255,0.06) inset',
         }}
       >
+        {/* 独立的左侧色条 — running 时呼吸 + glow */}
+        <div className={stripeClass} style={{ background: color, color }} />
+
         <div
-          className="bookmark-text text-[12px] font-bold tracking-wide"
+          className="bookmark-text text-[12px] font-bold tracking-wide relative z-10"
           style={{ color: exists ? '#0b1020' : 'rgba(154,166,182,0.7)' }}
         >
           {spec.shortLabel}
         </div>
         {exists && (
-          <div className="bookmark-text absolute bottom-1.5 right-1.5">
+          <div className="bookmark-text absolute bottom-1.5 right-1.5 z-10">
             <span className={dotClass} style={{ width: 5, height: 5 }} />
           </div>
         )}

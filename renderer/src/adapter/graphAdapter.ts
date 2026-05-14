@@ -67,6 +67,8 @@ function statusFromEventStatus(s?: string): RunNodeStatus {
 function appendStreamLog(graph: RunGraph, nodeId: string, ev: StreamEvent) {
   const n = graph.nodes[nodeId];
   if (!n) return;
+  const stepId = ev.step_id || '';
+  const isRework = Boolean(ev.is_rework || ev.meta?.is_rework || stepId.toLowerCase().includes('rework'));
   n.streamLog = [
     ...n.streamLog,
     {
@@ -74,6 +76,13 @@ function appendStreamLog(graph: RunGraph, nodeId: string, ev: StreamEvent) {
       status: statusFromEventStatus(ev.status),
       title: ev.title,
       summary: ev.summary,
+      eventType: ev.type,
+      stepId,
+      phase: ev.phase,
+      agentId: ev.agent_id,
+      isRework,
+      passGate: typeof ev.meta?.pass_gate === 'string' ? ev.meta.pass_gate : undefined,
+      reviewRound: typeof ev.meta?.review_round === 'number' ? ev.meta.review_round : undefined,
     },
   ];
 }
