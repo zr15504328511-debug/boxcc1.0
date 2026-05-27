@@ -94,6 +94,88 @@ def _build_runtime_model(runtime_model: dict[str, Any] | RuntimeModelConfig, **k
     raise ValueError(f"Provider '{provider}' is not supported for runtime chat yet")
 
 
+def extract_cache_usage(usage: dict[str, Any] | None) -> dict[str, int]:
+    """Normalise prompt-cache telemetry across providers.
+
+    Returns ``{"hit": int, "miss": int, "prompt": int, "completion": int}``
+    where missing fields default to 0. Handles three field shapes:
+
+    * **DeepSeek** — ``prompt_cache_hit_tokens`` / ``prompt_cache_miss_tokens``
+      with ``prompt_tokens = hit + miss``.
+    * **OpenAI-compatible** (OpenAI, Kimi, most Qwen via DashScope) —
+      ``prompt_tokens_details.cached_tokens`` is the hit; miss is derived.
+    * **Anthropic** — ``cache_read_input_tokens`` (hit) and
+      ``cache_creation_input_tokens`` (write, billed as miss in this view).
+
+    Callers can compute hit ratio as ``hit / max(prompt, 1)``.
+    """
+    usage = usage or {}
+    prompt = int(usage.get("prompt_tokens") or usage.get("input_tokens") or 0)
+    completion = int(usage.get("completion_tokens") or usage.get("output_tokens") or 0)
+
+    # DeepSeek extension wins if present (explicit hit/miss split).
+    ds_hit = usage.get("prompt_cache_hit_tokens")
+    ds_miss = usage.get("prompt_cache_miss_tokens")
+    if ds_hit is not None or ds_miss is not None:
+        hit = int(ds_hit or 0)
+        miss = int(ds_miss or 0) or max(prompt - hit, 0)
+        if not prompt:
+            prompt = hit + miss
+        return {"hit": hit, "miss": miss, "prompt": prompt, "completion": completion}
+
+    # OpenAI shape: prompt_tokens_details.cached_tokens
+    details = usage.get("prompt_tokens_details") or usage.get("input_token_details") or {}
+    if isinstance(details, dict) and details.get("cached_tokens") is not None:
+        hit = int(details.get("cached_tokens") or 0)
+        miss = max(prompt - hit, 0)
+        return {"hit": hit, "miss": miss, "prompt": prompt, "completion": completion}
+
+    # Anthropic shape: cache_read_input_tokens + cache_creation_input_tokens
+    a_read = usage.get("cache_read_input_tokens")
+    a_create = usage.get("cache_creation_input_tokens")
+    if a_read is not None or a_create is not None:
+        hit = int(a_read or 0)
+        miss = int(a_create or 0)
+        if not prompt:
+            prompt = hit + miss
+        return {"hit": hit, "miss": miss, "prompt": prompt, "completion": completion}
+
+    # No cache telemetry exposed by this provider.
+    return {"hit": 0, "miss": prompt, "prompt": prompt, "completion": completion}
+
+
+def extract_cache_usage_from_messages(messages: list[Any]) -> dict[str, int]:
+    """Aggregate cache usage across all AIMessages in a final state.
+
+    LangChain exposes provider usage through ``AIMessage.usage_metadata``
+    (new) and ``AIMessage.response_metadata['token_usage']`` (older). We
+    sum across every assistant message in the run.
+    """
+    totals = {"hit": 0, "miss": 0, "prompt": 0, "completion": 0}
+    for msg in messages or []:
+        if getattr(msg, "type", None) != "ai":
+            continue
+        # Newer LangChain: usage_metadata is the canonical shape.
+        meta = getattr(msg, "usage_metadata", None)
+        sample: dict[str, Any] | None = None
+        if isinstance(meta, dict):
+            sample = {
+                "prompt_tokens": meta.get("input_tokens"),
+                "completion_tokens": meta.get("output_tokens"),
+                "input_token_details": meta.get("input_token_details"),
+            }
+        response_meta = getattr(msg, "response_metadata", None) or {}
+        token_usage = response_meta.get("token_usage") if isinstance(response_meta, dict) else None
+        if isinstance(token_usage, dict):
+            sample = {**(sample or {}), **token_usage}
+        if not sample:
+            continue
+        chunk = extract_cache_usage(sample)
+        for k in totals:
+            totals[k] += chunk[k]
+    return totals
+
+
 def create_chat_model(name: str | None = None, runtime_model: dict[str, Any] | RuntimeModelConfig | None = None, **kwargs) -> BaseChatModel:
     """Create a chat model instance from config or runtime profile."""
     active_runtime_model = runtime_model or (get_runtime_model() if name is None else None)

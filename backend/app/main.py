@@ -2,7 +2,7 @@
 
 import logging
 import sys
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 from pathlib import Path
 
 import uvicorn
@@ -16,6 +16,7 @@ if backend_root not in sys.path:
 
 from app.routers import agents, chat, health, memory, models as models_router
 from config.app_config import get_app_config
+from config.paths import get_data_dir
 
 logging.basicConfig(
     level=logging.INFO,
@@ -29,8 +30,29 @@ async def lifespan(app: FastAPI):
     """Startup and shutdown hooks."""
     logger.info("boxcc backend starting up...")
     config = get_app_config()
-    logger.info(f"Loaded {len(config.models)} model(s), {len(config.get_enabled_departments())} department(s)")
-    yield
+    logger.info(f"Loaded {len(config.models)} model(s), {len(config.get_enabled_agents())} agent(s)")
+
+    # Wire the delegate workflow's SQLite checkpointer. AsyncSqliteSaver
+    # is an async context manager that owns an aiosqlite connection pool,
+    # so we keep it alive for the duration of the app via AsyncExitStack.
+    # Failure to construct the checkpointer is non-fatal — the workflow
+    # falls back to no-checkpoint mode and crash recovery is disabled.
+    async with AsyncExitStack() as stack:
+        try:
+            from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+            from subagents.workflow import set_delegate_checkpointer
+
+            checkpoint_path = get_data_dir() / "checkpoints.db"
+            saver = await stack.enter_async_context(
+                AsyncSqliteSaver.from_conn_string(str(checkpoint_path))
+            )
+            set_delegate_checkpointer(saver)
+            logger.info("delegate workflow checkpointer attached at %s", checkpoint_path)
+        except Exception:
+            logger.exception("failed to attach delegate workflow checkpointer; continuing without crash recovery")
+
+        yield
+
     # Flush memory queue on shutdown
     try:
         from agents.memory.queue import get_memory_queue

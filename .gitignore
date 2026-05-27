@@ -26,6 +26,8 @@ tmp-standalone-backend.out.log
 
 backend/data/*.json
 backend/data/*.bak
+backend/data/exports/
+backend/data/kb/
 !backend/data/.gitkeep
 
 .DS_Store

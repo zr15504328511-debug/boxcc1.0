@@ -1,0 +1,20 @@
+{
+  "id": "sup_wms",
+  "name": "仓储物流",
+  "animal": "仓鼠",
+  "department": "供应链中心",
+  "color": "仓储蓝+橙",
+  "accent": "#2d74b8",
+  "secondary": "#f28c28",
+  "prop": "扫码枪",
+  "personality": "小而忙，最讨厌账实不符和找不到库位。",
+  "fullImage": "assets/agents/sup_wms/full.png",
+  "headshotImage": "assets/agents/sup_wms/headshot.png",
+  "imagegenPrompts": {
+    "full": "Create a polished original animal office mascot in a Duolingo-inspired friendly flat vector character system for Boxcc, a professional fashion retail multi-agent workspace. Do not copy Duolingo characters or trademarks; use friendly geometric character design, expressive eyes, simple rounded bodies, bold silhouettes, humor, and app-icon readability. Character: 仓鼠, representing 仓储物流. Single symbolic object only: 扫码枪. No extra reports, no extra papers, no clipboards, no folders, no dashboards, no labels, no text. Style: premium flat vector illustration, clean geometric body, professional but funny, transparent-background-ready subject.",
+    "headshot": "Create a simplified vector animal avatar icon from the same mascot identity. Head-only, no hands, no props, no body except a tiny collar color accent if needed. Use 4-6 main color blocks, bold silhouette, clean flat shapes, and app-icon readability at 32px."
+  },
+  "symbol": "扫码枪",
+  "style": "Duolingo-inspired original friendly flat vector mascot, single symbolic object",
+  "sourceSheet": "assets/agents/single-source/sup_wms.png"
+}

@@ -1,0 +1,20 @@
+{
+  "id": "chl_ec",
+  "name": "电商运营",
+  "animal": "雪貂",
+  "department": "渠道中心",
+  "color": "紫+玫红",
+  "accent": "#7d4cc2",
+  "secondary": "#df4c8f",
+  "prop": "直播环灯",
+  "personality": "手速快，活动节奏、平台规则和流量波动都要追。",
+  "fullImage": "assets/agents/chl_ec/full.png",
+  "headshotImage": "assets/agents/chl_ec/headshot.png",
+  "imagegenPrompts": {
+    "full": "Create a polished original animal office mascot in a Duolingo-inspired friendly flat vector character system for Boxcc, a professional fashion retail multi-agent workspace. Do not copy Duolingo characters or trademarks; use friendly geometric character design, expressive eyes, simple rounded bodies, bold silhouettes, humor, and app-icon readability. Character: 雪貂, representing 电商运营. Single symbolic object only: 直播环灯. No extra reports, no extra papers, no clipboards, no folders, no dashboards, no labels, no text. Style: premium flat vector illustration, clean geometric body, professional but funny, transparent-background-ready subject.",
+    "headshot": "Create a simplified vector animal avatar icon from the same mascot identity. Head-only, no hands, no props, no body except a tiny collar color accent if needed. Use 4-6 main color blocks, bold silhouette, clean flat shapes, and app-icon readability at 32px."
+  },
+  "symbol": "直播环灯",
+  "style": "Duolingo-inspired original friendly flat vector mascot, single symbolic object",
+  "sourceSheet": "assets/agents/single-source/chl_ec.png"
+}

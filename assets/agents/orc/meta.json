@@ -1,0 +1,20 @@
+{
+  "id": "orc",
+  "name": "主席团",
+  "animal": "猫头鹰",
+  "department": "指挥中枢",
+  "color": "深蓝+金",
+  "accent": "#1f3a70",
+  "secondary": "#f4b942",
+  "prop": "指挥棒",
+  "personality": "冷静总控，喜欢把混乱会议变成清晰流程。",
+  "fullImage": "assets/agents/orc/full.png",
+  "headshotImage": "assets/agents/orc/headshot.png",
+  "imagegenPrompts": {
+    "full": "Create a polished original animal office mascot in a Duolingo-inspired friendly flat vector character system for Boxcc, a professional fashion retail multi-agent workspace. Do not copy Duolingo characters or trademarks; use friendly geometric character design, expressive eyes, simple rounded bodies, bold silhouettes, humor, and app-icon readability. Character: 猫头鹰, representing 主席团. Single symbolic object only: 指挥棒. No extra reports, no extra papers, no clipboards, no folders, no dashboards, no labels, no text. Style: premium flat vector illustration, clean geometric body, professional but funny, transparent-background-ready subject.",
+    "headshot": "Create a simplified vector animal avatar icon from the same mascot identity. Head-only, no hands, no props, no body except a tiny collar color accent if needed. Use 4-6 main color blocks, bold silhouette, clean flat shapes, and app-icon readability at 32px."
+  },
+  "symbol": "指挥棒",
+  "style": "Duolingo-inspired original friendly flat vector mascot, single symbolic object",
+  "sourceSheet": "assets/agents/single-source/orc.png"
+}

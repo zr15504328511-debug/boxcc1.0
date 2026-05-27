@@ -1,53 +1,58 @@
-﻿"""Agents endpoint - list effective agent definitions."""
+"""Agents endpoint — return the canonical agent catalog (orc + registry).
+
+Frontend should call this on startup and treat it as the source of truth.
+state.json should only persist per-agent toggle overrides, keyed by id.
+"""
 
 from fastapi import APIRouter
 
 from agents.prompt import build_lead_system_prompt
+from config.app_config import get_app_config
 from subagents.config import SubagentConfig
 from subagents.prompt import build_department_system_prompt
-from subagents.registry import get_department_configs
 
 router = APIRouter()
 
 
-def _as_subagent(agent) -> SubagentConfig:
+def _as_subagent(entry) -> SubagentConfig:
     return SubagentConfig(
-        id=agent.id,
-        name=agent.name,
-        display_name=agent.display_name,
-        description=agent.description,
-        enabled=agent.enabled,
-        model=agent.model,
-        system_prompt=agent.system_prompt,
-        spec_path=agent.spec_path,
-        skill_packs=list(agent.skill_packs),
-        max_turns=agent.max_turns,
+        id=entry.id,
+        name=entry.name,
+        one_liner=entry.one_liner,
+        tags=list(entry.tags),
+        spec_path=entry.spec_path,
+        kb_refs=list(entry.kb_refs),
+        max_turns=entry.max_turns,
+        enabled=entry.enabled,
+        display_name=entry.name,
+        description=entry.one_liner,
     )
 
 
 @router.get("/agents")
 async def list_agents():
+    config = get_app_config()
     agents = [{
         "id": "orc",
         "name": "主席团",
-        "display_name": "主席团",
-        "description": "负责理解问题、分发任务、整合结果并输出最终答复",
+        "one_liner": "理解问题、拆解任务、分派 agent、综合并输出最终答复",
+        "tags": ["lead", "orchestrator"],
         "enabled": True,
         "phase": "lead",
-        "skill_packs": [],
+        "kb_refs": [],
         "instructions": build_lead_system_prompt(),
     }]
     agents.extend([
         {
-            "id": agent.id,
-            "name": agent.name,
-            "display_name": agent.display_name or agent.name or agent.id,
-            "description": agent.description,
-            "enabled": agent.enabled,
-            "phase": "critic" if agent.id == "crt" else "worker",
-            "skill_packs": list(agent.skill_packs),
-            "instructions": build_department_system_prompt(_as_subagent(agent)),
+            "id": entry.id,
+            "name": entry.name,
+            "one_liner": entry.one_liner,
+            "tags": list(entry.tags),
+            "enabled": entry.enabled,
+            "phase": "critic" if entry.id == "crt" else "worker",
+            "kb_refs": list(entry.kb_refs),
+            "instructions": build_department_system_prompt(_as_subagent(entry)),
         }
-        for agent in get_department_configs()
+        for entry in config.agents.registry
     ])
     return agents

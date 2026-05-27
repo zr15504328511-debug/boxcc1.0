@@ -1,0 +1,222 @@
+[
+  {
+    "id": "orc",
+    "name": "主席团",
+    "animal": "猫头鹰",
+    "department": "指挥中枢",
+    "symbol": "指挥棒",
+    "accent": "#1f3a70",
+    "secondary": "#f4b942",
+    "fullImage": "assets/agents/orc/full.png",
+    "headshotImage": "assets/agents/orc/headshot.png"
+  },
+  {
+    "id": "mer_plan",
+    "name": "商品企划",
+    "animal": "狐狸",
+    "department": "商品中心",
+    "symbol": "色卡扇",
+    "accent": "#3a4cc0",
+    "secondary": "#20bfa9",
+    "fullImage": "assets/agents/mer_plan/full.png",
+    "headshotImage": "assets/agents/mer_plan/headshot.png"
+  },
+  {
+    "id": "mer_ops",
+    "name": "商品运营",
+    "animal": "松鼠",
+    "department": "商品中心",
+    "symbol": "SKU 吊牌",
+    "accent": "#13a68a",
+    "secondary": "#607d9a",
+    "fullImage": "assets/agents/mer_ops/full.png",
+    "headshotImage": "assets/agents/mer_ops/headshot.png"
+  },
+  {
+    "id": "sup_buy",
+    "name": "采购",
+    "animal": "河狸",
+    "department": "供应链中心",
+    "symbol": "面料样卡",
+    "accent": "#d49b18",
+    "secondary": "#8a5a2b",
+    "fullImage": "assets/agents/sup_buy/full.png",
+    "headshotImage": "assets/agents/sup_buy/headshot.png"
+  },
+  {
+    "id": "sup_pmc",
+    "name": "生产协调",
+    "animal": "牧羊犬",
+    "department": "供应链中心",
+    "symbol": "秒表",
+    "accent": "#426f92",
+    "secondary": "#e1b12c",
+    "fullImage": "assets/agents/sup_pmc/full.png",
+    "headshotImage": "assets/agents/sup_pmc/headshot.png"
+  },
+  {
+    "id": "sup_qc",
+    "name": "品质 QC",
+    "animal": "啄木鸟",
+    "department": "供应链中心",
+    "symbol": "放大镜",
+    "accent": "#2f80c7",
+    "secondary": "#d83a34",
+    "fullImage": "assets/agents/sup_qc/full.png",
+    "headshotImage": "assets/agents/sup_qc/headshot.png"
+  },
+  {
+    "id": "sup_wms",
+    "name": "仓储物流",
+    "animal": "仓鼠",
+    "department": "供应链中心",
+    "symbol": "扫码枪",
+    "accent": "#2d74b8",
+    "secondary": "#f28c28",
+    "fullImage": "assets/agents/sup_wms/full.png",
+    "headshotImage": "assets/agents/sup_wms/headshot.png"
+  },
+  {
+    "id": "chl_ch",
+    "name": "渠道运营",
+    "animal": "骆驼",
+    "department": "渠道中心",
+    "symbol": "地图定位针",
+    "accent": "#dd7a22",
+    "secondary": "#d2a55f",
+    "fullImage": "assets/agents/chl_ch/full.png",
+    "headshotImage": "assets/agents/chl_ch/headshot.png"
+  },
+  {
+    "id": "chl_store",
+    "name": "门店运营",
+    "animal": "长颈鹿",
+    "department": "渠道中心",
+    "symbol": "衣架",
+    "accent": "#d5a12d",
+    "secondary": "#5aa36a",
+    "fullImage": "assets/agents/chl_store/full.png",
+    "headshotImage": "assets/agents/chl_store/headshot.png"
+  },
+  {
+    "id": "chl_ec",
+    "name": "电商运营",
+    "animal": "雪貂",
+    "department": "渠道中心",
+    "symbol": "直播环灯",
+    "accent": "#7d4cc2",
+    "secondary": "#df4c8f",
+    "fullImage": "assets/agents/chl_ec/full.png",
+    "headshotImage": "assets/agents/chl_ec/headshot.png"
+  },
+  {
+    "id": "gro_brand",
+    "name": "品牌营销",
+    "animal": "孔雀",
+    "department": "增长中心",
+    "symbol": "品牌调色盘",
+    "accent": "#167f8c",
+    "secondary": "#d8a638",
+    "fullImage": "assets/agents/gro_brand/full.png",
+    "headshotImage": "assets/agents/gro_brand/headshot.png"
+  },
+  {
+    "id": "gro_pr",
+    "name": "公关 PR",
+    "animal": "仙鹤",
+    "department": "增长中心",
+    "symbol": "麦克风",
+    "accent": "#6f9fc9",
+    "secondary": "#d94f45",
+    "fullImage": "assets/agents/gro_pr/full.png",
+    "headshotImage": "assets/agents/gro_pr/headshot.png"
+  },
+  {
+    "id": "gro_content",
+    "name": "内容社媒",
+    "animal": "鹦鹉",
+    "department": "增长中心",
+    "symbol": "手机",
+    "accent": "#35b86f",
+    "secondary": "#ee5d9a",
+    "fullImage": "assets/agents/gro_content/full.png",
+    "headshotImage": "assets/agents/gro_content/headshot.png"
+  },
+  {
+    "id": "biz_bi",
+    "name": "数据 BI",
+    "animal": "章鱼",
+    "department": "经营支持中心",
+    "symbol": "数据球",
+    "accent": "#6658c8",
+    "secondary": "#20aac0",
+    "fullImage": "assets/agents/biz_bi/full.png",
+    "headshotImage": "assets/agents/biz_bi/headshot.png"
+  },
+  {
+    "id": "biz_fin",
+    "name": "财务/成本/预算",
+    "animal": "猫鼬",
+    "department": "经营支持中心",
+    "symbol": "计算器",
+    "accent": "#2f6b52",
+    "secondary": "#79848c",
+    "fullImage": "assets/agents/biz_fin/full.png",
+    "headshotImage": "assets/agents/biz_fin/headshot.png"
+  },
+  {
+    "id": "biz_hr",
+    "name": "HR/培训/OD",
+    "animal": "水獭",
+    "department": "经营支持中心",
+    "symbol": "握手徽章",
+    "accent": "#4d9d6a",
+    "secondary": "#f18b3a",
+    "fullImage": "assets/agents/biz_hr/full.png",
+    "headshotImage": "assets/agents/biz_hr/headshot.png"
+  },
+  {
+    "id": "biz_voc",
+    "name": "客服 VOC",
+    "animal": "海豚",
+    "department": "经营支持中心",
+    "symbol": "耳麦",
+    "accent": "#2d9fd3",
+    "secondary": "#ef7664",
+    "fullImage": "assets/agents/biz_voc/full.png",
+    "headshotImage": "assets/agents/biz_voc/headshot.png"
+  },
+  {
+    "id": "biz_legal",
+    "name": "法务/合规",
+    "animal": "乌龟",
+    "department": "经营支持中心",
+    "symbol": "合规印章",
+    "accent": "#2d6b4b",
+    "secondary": "#b33a3a",
+    "fullImage": "assets/agents/biz_legal/full.png",
+    "headshotImage": "assets/agents/biz_legal/headshot.png"
+  },
+  {
+    "id": "biz_it",
+    "name": "IT/数据中台",
+    "animal": "变色龙",
+    "department": "经营支持中心",
+    "symbol": "插头线",
+    "accent": "#1aa0a8",
+    "secondary": "#7a5cc7",
+    "fullImage": "assets/agents/biz_it/full.png",
+    "headshotImage": "assets/agents/biz_it/headshot.png"
+  },
+  {
+    "id": "crt",
+    "name": "风控评审",
+    "animal": "黑豹",
+    "department": "风控",
+    "symbol": "红盾牌",
+    "accent": "#242936",
+    "secondary": "#d73838",
+    "fullImage": "assets/agents/crt/full.png",
+    "headshotImage": "assets/agents/crt/headshot.png"
+  }
+]

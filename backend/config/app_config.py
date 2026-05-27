@@ -26,23 +26,34 @@ class ModelConfig(BaseModel):
         extra = "allow"
 
 
-class DepartmentAgentConfig(BaseModel):
+class AgentConfig(BaseModel):
+    """One entry in the agent registry.
+
+    The flat registry replaces the legacy `DepartmentsConfig` model. Each
+    agent is its own specialist (e.g. `mer_plan`, `biz_legal`), not a
+    "center" that groups multiple roles. `crt` (critic) is part of the
+    same list but special-cased downstream as the validation authority.
+    """
+
     id: str
     name: str
-    display_name: str = ""
-    description: str = ""
-    enabled: bool = True
-    model: str = "inherit"
-    system_prompt: str = ""
+    one_liner: str = ""
+    tags: list[str] = Field(default_factory=list)
     spec_path: str = ""
-    skill_packs: list[str] = Field(default_factory=list)
+    kb_refs: list[str] = Field(default_factory=list)
     max_turns: int = 25
+    enabled: bool = True
+
+    class Config:
+        extra = "allow"
 
 
-class DepartmentsConfig(BaseModel):
-    max_concurrent: int = 3
+class AgentsConfig(BaseModel):
+    """Top-level registry container. Mirrors what used to be `departments`."""
+
+    max_concurrent: int = 6
     timeout_seconds: int = 1800
-    agents: list[DepartmentAgentConfig] = Field(default_factory=list)
+    registry: list[AgentConfig] = Field(default_factory=list)
 
 
 class LeadAgentConfig(BaseModel):
@@ -74,6 +85,77 @@ class CheckpointerConfig(BaseModel):
     connection_string: str = "data/checkpoints.db"
 
 
+class DeliverableSection(BaseModel):
+    """One section/slide slot in a deliverable template.
+
+    `type` is interpreted by the output tool (e.g. for management_ppt
+    `cover` / `agenda` / `divider` / `content` / `data` / `closing`;
+    for product_detail_page `hero` / `highlights` / `fabric` / `size_table`
+    / `scenes` / `care` / `faq`).
+    """
+
+    type: str
+    required: bool = False
+    min_count: int = 0
+    max_count: int = 99
+    repeats: str = ""  # semantic placeholder (e.g. "chapters", "products")
+    notes: str = ""    # plain-language hint orc reads when filling this slot
+
+    class Config:
+        extra = "allow"
+
+
+class DeliverableTypeConfig(BaseModel):
+    """A reusable recipe for one kind of deliverable.
+
+    Lives in `config.yaml` under `deliverable_types:`. Orc reads the list,
+    matches the user request against `triggers`, then uses the matched
+    template to:
+
+    1. Pick `output_tool` and `default_theme`
+    2. Build `chairman_plan` covering `required_workers` (+ optional
+       `suggested_workers`) and tell each worker which `structure`
+       sections their output should feed (`worker_contribution_map`)
+    3. Compose the final tool call by filling the `structure` skeleton
+       with worker text
+    4. Pass `quality_gates` to the critic so the review is grounded in
+       deliverable-specific criteria, not generic prose
+    """
+
+    id: str
+    name: str = ""
+    description: str = ""
+    triggers: list[str] = Field(default_factory=list)
+    output_tool: str = ""               # e.g. "create_management_ppt"
+    default_theme: str = ""              # passed into the tool's meta.theme
+    voice: str = ""                      # tone / register guidance
+    suggested_workers: list[str] = Field(default_factory=list)
+    required_workers: list[str] = Field(default_factory=list)
+    structure: list[DeliverableSection] = Field(default_factory=list)
+    worker_contribution_map: dict[str, list[str]] = Field(default_factory=dict)
+    quality_gates: list[str] = Field(default_factory=list)
+
+    class Config:
+        extra = "allow"
+
+
+class KnowledgeBaseConfig(BaseModel):
+    """One registered external knowledge base.
+
+    `retriever` is a string id that maps to a class in
+    `knowledge.retriever` (e.g. "noop", future: "chroma", "http").
+    """
+
+    id: str
+    name: str = ""
+    description: str = ""
+    retriever: str = "noop"
+    config: dict[str, Any] = Field(default_factory=dict)
+
+    class Config:
+        extra = "allow"
+
+
 class ServerConfig(BaseModel):
     host: str = "127.0.0.1"
     port: int = 18900
@@ -82,13 +164,15 @@ class ServerConfig(BaseModel):
 class AppConfig(BaseModel):
     config_version: int = 1
     models: list[ModelConfig] = Field(default_factory=list)
-    departments: DepartmentsConfig = Field(default_factory=DepartmentsConfig)
+    agents: AgentsConfig = Field(default_factory=AgentsConfig)
     lead_agent: LeadAgentConfig = Field(default_factory=LeadAgentConfig)
     summarization: SummarizationConfig = Field(default_factory=SummarizationConfig)
     memory: MemoryConfig = Field(default_factory=MemoryConfig)
     title: TitleConfig = Field(default_factory=TitleConfig)
     checkpointer: CheckpointerConfig = Field(default_factory=CheckpointerConfig)
     server: ServerConfig = Field(default_factory=ServerConfig)
+    knowledge_bases: list[KnowledgeBaseConfig] = Field(default_factory=list)
+    deliverable_types: list[DeliverableTypeConfig] = Field(default_factory=list)
 
     class Config:
         extra = "allow"
@@ -143,8 +227,21 @@ class AppConfig(BaseModel):
     def get_model_config(self, name: str) -> ModelConfig | None:
         return next((m for m in self.models if m.name == name), None)
 
-    def get_enabled_departments(self) -> list[DepartmentAgentConfig]:
-        return [a for a in self.departments.agents if a.enabled]
+    def get_enabled_agents(self) -> list[AgentConfig]:
+        """All enabled agents including critic."""
+        return [a for a in self.agents.registry if a.enabled]
+
+    def get_worker_agents(self) -> list[AgentConfig]:
+        """Enabled agents excluding `crt` — those orc can put into chairman_plan."""
+        return [a for a in self.agents.registry if a.enabled and a.id != "crt"]
+
+    def get_critic_agent(self) -> AgentConfig | None:
+        """Return the critic agent if present."""
+        return next((a for a in self.agents.registry if a.id == "crt"), None)
+
+    # ---- Legacy aliases (one-release back-compat) ----
+    def get_enabled_departments(self) -> list[AgentConfig]:  # noqa: D401 - shim
+        return self.get_enabled_agents()
 
 
 _config: AppConfig | None = None

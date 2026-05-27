@@ -1,0 +1,20 @@
+{
+  "id": "mer_plan",
+  "name": "商品企划",
+  "animal": "狐狸",
+  "department": "商品中心",
+  "color": "靛蓝+青绿",
+  "accent": "#3a4cc0",
+  "secondary": "#20bfa9",
+  "prop": "色卡扇",
+  "personality": "聪明敏锐，擅长把趋势翻译成可卖的货盘。",
+  "fullImage": "assets/agents/mer_plan/full.png",
+  "headshotImage": "assets/agents/mer_plan/headshot.png",
+  "imagegenPrompts": {
+    "full": "Create a polished original animal office mascot in a Duolingo-inspired friendly flat vector character system for Boxcc, a professional fashion retail multi-agent workspace. Do not copy Duolingo characters or trademarks; use friendly geometric character design, expressive eyes, simple rounded bodies, bold silhouettes, humor, and app-icon readability. Character: 狐狸, representing 商品企划. Single symbolic object only: 色卡扇. No extra reports, no extra papers, no clipboards, no folders, no dashboards, no labels, no text. Style: premium flat vector illustration, clean geometric body, professional but funny, transparent-background-ready subject.",
+    "headshot": "Create a simplified vector animal avatar icon from the same mascot identity. Head-only, no hands, no props, no body except a tiny collar color accent if needed. Use 4-6 main color blocks, bold silhouette, clean flat shapes, and app-icon readability at 32px."
+  },
+  "symbol": "色卡扇",
+  "style": "Duolingo-inspired original friendly flat vector mascot, single symbolic object",
+  "sourceSheet": "assets/agents/single-source/mer_plan.png"
+}

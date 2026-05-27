@@ -32,6 +32,7 @@ class WorkerShard(BaseModel):
     result_summary: str = ""
     validation_feedback: str = ""
     retry_count: int = 0
+    last_attempt: int = 0
     status: str = "idle"
     updated_at: str = Field(default_factory=utcnow_iso)
 

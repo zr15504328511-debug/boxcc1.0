@@ -594,34 +594,97 @@
 
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
+
+        // Agent catalog is fetched from backend /api/agents on startup.
+        // This seed is only the orc placeholder so the UI has something to
+        // render before the fetch resolves. State.json may still contain
+        // user toggle overrides from previous sessions — those get merged
+        // by id after the fetch completes (see fetchAgentCatalog below).
         const DEFAULT_DEPARTMENT_AGENTS = [
-            { id: 'orc', name: '主席团', desc: '负责任务分发、结果汇总与最终输出', enabled: true, instructions: '负责理解用户问题，决定启用哪些部门，并整合最终结果。', isDefault: true, binding: 'auto' },
-            { id: 'dom', name: '学术部', desc: '负责服装专业知识与工艺判断', enabled: true, instructions: '负责面料、工艺、版型、尺码与专业可行性判断。', isDefault: true, binding: 'auto' },
-            { id: 'pln', name: '企划部', desc: '负责企划结构、SKU 与波段规划', enabled: true, instructions: '负责企划结构、系列组合、SKU 矩阵与开发排期。', isDefault: true, binding: 'auto' },
-            { id: 'ana', name: '经营部', desc: '负责价格、成本与经营分析', enabled: true, instructions: '负责价格带、成本、毛利、竞品与经营测算。', isDefault: true, binding: 'auto' },
-            { id: 'crt', name: '质检部', desc: '负责风控、挑错与复核', enabled: true, instructions: '负责检查逻辑冲突、风险点、执行可行性并提出修正意见。', isDefault: true, binding: 'auto' },
-            { id: 'cpy', name: '宣传部', desc: '负责卖点翻译与传播表达', enabled: true, instructions: '负责卖点提炼、消费者表达与传播文案输出。', isDefault: true, binding: 'auto' }
+            { id: 'orc', name: '主席团', desc: '负责任务分发、结果汇总与最终输出', enabled: true, instructions: '负责理解用户问题，决定启用哪些 agent，并整合最终结果。', isDefault: true, binding: 'auto' }
         ];
 
-        function normalizeDepartmentAgents(existingAgents) {
+        const AGENTS_API_URL = 'http://127.0.0.1:18900/api/agents';
+
+        /**
+         * Normalize the stored agent list against an authoritative catalog.
+         * - Drops any stored agent whose id is not in the catalog (prunes
+         *   legacy ids like dom/pln/ana/cpy/mer/sup/chl/gro/biz).
+         * - Preserves user toggle overrides (enabled, binding) by id.
+         * - When catalog is empty (e.g. backend offline), falls back to
+         *   keeping whatever is already in state so the UI doesn't go blank.
+         */
+        function normalizeDepartmentAgents(existingAgents, catalog) {
             const incoming = Array.isArray(existingAgents) ? existingAgents : [];
             const incomingMap = new Map(incoming.map(agent => [agent.id, agent]));
 
-            return DEFAULT_DEPARTMENT_AGENTS.map((agent) => {
-                const existing = incomingMap.get(agent.id);
-                return existing ? { ...agent, ...existing } : agent;
+            if (!Array.isArray(catalog) || catalog.length === 0) {
+                // No catalog available — keep seed + whatever was stored.
+                return DEFAULT_DEPARTMENT_AGENTS.map((agent) => {
+                    const existing = incomingMap.get(agent.id);
+                    return existing ? { ...agent, ...existing } : agent;
+                });
+            }
+
+            const validIds = new Set(catalog.map(a => a.id));
+            const prunedCount = incoming.filter(a => !validIds.has(a.id)).length;
+            if (prunedCount > 0) {
+                console.info(`[boxcc] Pruned ${prunedCount} stale agent overrides not in /api/agents catalog`);
+            }
+
+            return catalog.map((entry) => {
+                const existing = incomingMap.get(entry.id);
+                // Catalog provides id/name/one_liner/tags/phase/instructions.
+                // Merge user toggle (enabled, binding) from existing override.
+                const base = {
+                    id: entry.id,
+                    name: entry.name,
+                    desc: entry.one_liner || '',
+                    enabled: entry.enabled !== false,
+                    instructions: entry.instructions || entry.one_liner || '',
+                    isDefault: true,
+                    binding: 'auto',
+                    tags: entry.tags || [],
+                    phase: entry.phase || 'worker',
+                    kb_refs: entry.kb_refs || [],
+                };
+                if (existing) {
+                    return { ...base, enabled: existing.enabled ?? base.enabled, binding: existing.binding ?? base.binding };
+                }
+                return base;
             });
+        }
+
+        async function fetchAgentCatalog() {
+            try {
+                const res = await fetch(AGENTS_API_URL, { cache: 'no-store' });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+                return Array.isArray(data) ? data : [];
+            } catch (e) {
+                console.warn('[boxcc] Failed to fetch agent catalog from backend:', e);
+                return [];
+            }
         }
 
         const ROUTE_LABELS = {
             direct_answer: '\u76f4\u63a5\u56de\u7b54',
+            integrated_review: '\u5b8c\u6574\u65b9\u6848 / \u8de8\u57df\u8bc4\u5ba1',
+            open: 'orc \u81ea\u7531\u8def\u7531',
+            // Legacy routes kept for back-compat with historical artifacts.
             quality_risk: '\u8d28\u91cf\u4e0e\u5ba2\u8bc9\u98ce\u9669',
             planning: '\u4f01\u5212\u89c4\u5212',
             finance: '\u7ecf\u8425\u6d4b\u7b97',
             copywriting: '\u8868\u8fbe\u4e0e\u6587\u6848',
-            integrated_review: '\u7efc\u5408\u4f1a\u5ba1',
             mixed: '\u6df7\u5408\u4efb\u52a1',
             default_quality_fallback: '\u9ed8\u8ba4\u98ce\u9669\u5206\u6790',
+            default_biz_clarify: '\u9ed8\u8ba4\u7ecf\u8425\u53e3\u5f84\u6f84\u6e05',
+            quality_risk_escalation: '\u91cd\u5927\u8d28\u91cf / \u7ef4\u6743\u5347\u7ea7',
+            merchandise: '\u5546\u54c1\u51b3\u7b56',
+            supply_chain: '\u4f9b\u5e94\u94fe\u51b3\u7b56',
+            channel_ops: '\u6e20\u9053\u51b3\u7b56',
+            growth_marketing: '\u589e\u957f\u8425\u9500',
+            business_ops: '\u7ecf\u8425\u652f\u6301',
         };
 
         function truncateInline(value, limit = 120) {
@@ -778,21 +841,22 @@
             useEffect(() => {
                 if (!window.boxccAPI?.loadState) return;
 
-                window.boxccAPI.loadState().then((state) => {
+                // Fetch agent catalog and saved state in parallel, then merge.
+                Promise.all([
+                    window.boxccAPI.loadState().catch(err => { console.error('loadState failed', err); return null; }),
+                    fetchAgentCatalog(),
+                ]).then(([state, catalog]) => {
                     if (state?.sessions?.length) {
                         setSessions(state.sessions);
                         setActiveId(state.sessions[0].id);
                     }
-                    if (state?.agents?.length) {
-                        setAgents(normalizeDepartmentAgents(state.agents));
-                    }
+                    // Always normalize against the freshly-fetched catalog so
+                    // stale agent ids (dom/pln/ana/cpy, old 6-dept ids) are
+                    // pruned automatically.
+                    setAgents(normalizeDepartmentAgents(state?.agents || DEFAULT_DEPARTMENT_AGENTS, catalog));
                     if (state?.profiles?.length) {
                         setProfiles(state.profiles);
                     }
-                    hasHydrated.current = true;
-                }).catch((error) => {
-                    console.error('Failed to load app state', error);
-                    setAgents(normalizeDepartmentAgents(DEFAULT_DEPARTMENT_AGENTS));
                     hasHydrated.current = true;
                 });
             }, []);
@@ -845,13 +909,8 @@
                 };
             }, [profiles, profileModelState]);
 
-            useEffect(() => {
-                const normalized = normalizeDepartmentAgents(agents);
-                const changed = JSON.stringify(normalized) !== JSON.stringify(agents);
-                if (changed) {
-                    setAgents(normalized);
-                }
-            }, []);
+            // (Initial agent normalization now happens in the loadState effect
+            // above, against the freshly-fetched catalog. No second pass needed.)
 
             useEffect(() => {
                 requestAnimationFrame(() => inputRef.current?.focus());

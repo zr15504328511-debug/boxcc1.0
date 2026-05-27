@@ -1,14 +1,15 @@
-"""Prompt builders for department subagents."""
+"""Prompt builders for specialist subagents."""
 
+from agents.master_prompt import load_master_prompt
 from agents.spec_loader import load_prompt_spec
 from subagents.config import SubagentConfig
 
 GLOBAL_DEPARTMENT_RULES = """
 ## Global Execution Rules
 - You are a stateless specialist. You do not have access to the full user chat history.
-- Only use the current system prompt, the task packet, and any approved skill packs for this run.
+- Only use the current system prompt, the task packet, and any authorised KBs for this run.
 - Do not claim hidden context or prior turns.
-- If a `Worker Session Shard` block is provided, treat it as compressed same-conversation continuation memory for your department only.
+- If a `Worker Session Shard` block is provided, treat it as compressed same-conversation continuation memory for your agent only.
 - Return concise, decision-ready output instead of long chain-of-thought.
 - Surface concrete risks, constraints, and recommended actions.
 - If the task is underspecified, state what is missing and make the safest reasonable assumption.
@@ -34,7 +35,7 @@ CRITIC_OUTPUT_CONTRACT = """
 pass_gate: passed|fixes_required|failed
 summary: one-sentence verdict
 rework_targets:
-- worker_id: specific fix request
+- agent_id: specific fix request
 </validation_report>
 - If no rework is needed, keep `rework_targets:` empty with no list items.
 - `pass_gate=passed` means the output can be delivered.
@@ -44,15 +45,28 @@ rework_targets:
 
 
 def build_department_system_prompt(dept: SubagentConfig) -> str:
-    """Build the effective system prompt for a department agent."""
-    base_prompt = load_prompt_spec(dept.spec_path, dept.system_prompt) or f"You are the {dept.name} department."
+    """Build the effective system prompt for a specialist agent.
+
+    Note: the `dept` parameter name is kept for source-line stability with
+    callers; semantically it's a single specialist agent, not a department.
+    """
+    base_prompt = load_prompt_spec(dept.spec_path, "") or f"You are the `{dept.id}` agent ({dept.name})."
     role_block = (
-        "## Department Identity\n"
-        f"- Department ID: {dept.id}\n"
-        f"- Department Name: {dept.name}\n"
-        f"- Display Name: {dept.display_name or dept.id}\n"
-        f"- Responsibility: {dept.description or 'Not specified'}\n"
-        f"- Registered Skill Packs: {', '.join(dept.skill_packs) if dept.skill_packs else 'None'}"
+        "## Agent Identity\n"
+        f"- Agent ID: {dept.id}\n"
+        f"- Name: {dept.name}\n"
+        f"- One-liner: {dept.one_liner or '(not set)'}\n"
+        f"- Tags: {', '.join(dept.tags) if dept.tags else '(none)'}\n"
+        f"- Authorised KBs (declared scope): {', '.join(dept.kb_refs) if dept.kb_refs else '(none)'}"
     )
     contract = CRITIC_OUTPUT_CONTRACT if dept.id == "crt" else WORKER_OUTPUT_CONTRACT
-    return "\n\n".join([base_prompt, role_block, GLOBAL_DEPARTMENT_RULES, contract])
+
+    # boxcc.md (master constitution) is prepended to every worker prompt so
+    # that cross-agent rules (history policy, KB routing, output style) stay
+    # in a single source of truth. Skip silently if missing.
+    sections: list[str] = []
+    master = load_master_prompt()
+    if master:
+        sections.append(master)
+    sections.extend([base_prompt, role_block, GLOBAL_DEPARTMENT_RULES, contract])
+    return "\n\n".join(sections)

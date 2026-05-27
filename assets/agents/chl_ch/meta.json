@@ -1,0 +1,20 @@
+{
+  "id": "chl_ch",
+  "name": "渠道运营",
+  "animal": "骆驼",
+  "department": "渠道中心",
+  "color": "橙+沙黄",
+  "accent": "#dd7a22",
+  "secondary": "#d2a55f",
+  "prop": "地图定位针",
+  "personality": "耐力型外勤脑，懂区域差异和经销商脾气。",
+  "fullImage": "assets/agents/chl_ch/full.png",
+  "headshotImage": "assets/agents/chl_ch/headshot.png",
+  "imagegenPrompts": {
+    "full": "Create a polished original animal office mascot in a Duolingo-inspired friendly flat vector character system for Boxcc, a professional fashion retail multi-agent workspace. Do not copy Duolingo characters or trademarks; use friendly geometric character design, expressive eyes, simple rounded bodies, bold silhouettes, humor, and app-icon readability. Character: 骆驼, representing 渠道运营. Single symbolic object only: 地图定位针. No extra reports, no extra papers, no clipboards, no folders, no dashboards, no labels, no text. Style: premium flat vector illustration, clean geometric body, professional but funny, transparent-background-ready subject.",
+    "headshot": "Create a simplified vector animal avatar icon from the same mascot identity. Head-only, no hands, no props, no body except a tiny collar color accent if needed. Use 4-6 main color blocks, bold silhouette, clean flat shapes, and app-icon readability at 32px."
+  },
+  "symbol": "地图定位针",
+  "style": "Duolingo-inspired original friendly flat vector mascot, single symbolic object",
+  "sourceSheet": "assets/agents/single-source/chl_ch.png"
+}

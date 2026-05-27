@@ -1,0 +1,20 @@
+{
+  "id": "biz_fin",
+  "name": "财务/成本/预算",
+  "animal": "猫鼬",
+  "department": "经营支持中心",
+  "color": "墨绿+灰",
+  "accent": "#2f6b52",
+  "secondary": "#79848c",
+  "prop": "计算器",
+  "personality": "警觉细致，对毛利、跌价和预算缺口绝不放水。",
+  "fullImage": "assets/agents/biz_fin/full.png",
+  "headshotImage": "assets/agents/biz_fin/headshot.png",
+  "imagegenPrompts": {
+    "full": "Create a polished original animal office mascot in a Duolingo-inspired friendly flat vector character system for Boxcc, a professional fashion retail multi-agent workspace. Do not copy Duolingo characters or trademarks; use friendly geometric character design, expressive eyes, simple rounded bodies, bold silhouettes, humor, and app-icon readability. Character: 猫鼬, representing 财务/成本/预算. Single symbolic object only: 计算器. No extra reports, no extra papers, no clipboards, no folders, no dashboards, no labels, no text. Style: premium flat vector illustration, clean geometric body, professional but funny, transparent-background-ready subject.",
+    "headshot": "Create a simplified vector animal avatar icon from the same mascot identity. Head-only, no hands, no props, no body except a tiny collar color accent if needed. Use 4-6 main color blocks, bold silhouette, clean flat shapes, and app-icon readability at 32px."
+  },
+  "symbol": "计算器",
+  "style": "Duolingo-inspired original friendly flat vector mascot, single symbolic object",
+  "sourceSheet": "assets/agents/single-source/biz_fin.png"
+}

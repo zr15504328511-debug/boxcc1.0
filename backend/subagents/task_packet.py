@@ -5,6 +5,32 @@ from typing import Literal
 from pydantic import BaseModel, Field, field_validator
 
 
+_HISTORY_ROLE_ALIASES = {
+    'human': 'user',
+    'ai': 'assistant',
+    'assistant_message': 'assistant',
+    'user_message': 'user',
+}
+
+
+class AttachedHistoryItem(BaseModel):
+    """A single conversation fragment hand-picked by orc for a worker.
+
+    Workers are otherwise stateless; this lets orc surface only the
+    minimum prior context needed for the task. Each item is rendered as
+    a HumanMessage or AIMessage before the task packet body.
+    """
+
+    role: Literal['user', 'assistant'] = 'user'
+    content: str = Field(min_length=1)
+
+    @field_validator('role', mode='before')
+    @classmethod
+    def _coerce_role(cls, value):
+        text = str(value or 'user').strip().lower()
+        return _HISTORY_ROLE_ALIASES.get(text, text)
+
+
 _PRIORITY_ALIASES = {
     'medium': 'normal',
     'mid': 'normal',
@@ -24,6 +50,14 @@ class WorkerTaskPacket(BaseModel):
     priority: Literal['low', 'normal', 'high'] = 'normal'
     notes: list[str] = Field(default_factory=list, description='Optional execution notes from orc.')
     success_criteria: list[str] = Field(default_factory=list, description='What a good result should explicitly cover.')
+    attached_history: list[AttachedHistoryItem] = Field(
+        default_factory=list,
+        description='Conversation fragments orc hand-picked for this worker. Each item is rendered as a HumanMessage or AIMessage before the task body. Use sparingly.',
+    )
+    kb_refs: list[str] = Field(
+        default_factory=list,
+        description='Knowledge base ids that orc assigned to this worker. Workers may only query KBs listed here.',
+    )
 
     @field_validator('objective', mode='before')
     @classmethod
@@ -45,7 +79,7 @@ class WorkerTaskPacket(BaseModel):
         text = str(value).strip().lower()
         return _PRIORITY_ALIASES.get(text, text)
 
-    @field_validator('context', 'constraints', 'required_output', 'requested_skill_packs', 'notes', 'success_criteria', mode='before')
+    @field_validator('context', 'constraints', 'required_output', 'requested_skill_packs', 'notes', 'success_criteria', 'kb_refs', mode='before')
     @classmethod
     def _normalize_string_list(cls, value):
         if value is None:
@@ -85,5 +119,7 @@ def render_task_packet(packet: WorkerTaskPacket, available_skill_packs: list[str
         lines.append('Approved Skill Packs For This Task\n' + '\n'.join(f'- {item}' for item in packet.requested_skill_packs))
     if packet.notes:
         lines.append('Execution Notes\n' + '\n'.join(f'- {item}' for item in packet.notes))
+    if packet.kb_refs:
+        lines.append('Assigned Knowledge Bases\n' + '\n'.join(f'- {item}' for item in packet.kb_refs))
 
     return '\n\n'.join(lines)

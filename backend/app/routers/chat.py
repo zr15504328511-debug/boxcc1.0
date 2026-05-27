@@ -17,8 +17,8 @@ from pydantic import BaseModel
 
 from agents.lead_agent import make_lead_agent
 from config.app_config import AppConfig
-from models.factory import reset_runtime_model, set_runtime_model
-from session.checklist import build_orc_session_brief, emit_checklist_sync, set_final_summary, update_checklist_item
+from models.factory import extract_cache_usage_from_messages, reset_runtime_model, set_runtime_model
+from session.checklist import build_initial_checklist, emit_checklist_sync, set_final_summary, sync_session_checklist, update_checklist_item
 from session.store import get_session_store
 from runtime_events import emit_run_step, reset_event_emitter, set_event_emitter
 from subagents.tools import _build_routing_policy
@@ -103,42 +103,6 @@ def _extract_department_results(messages: list[Any]) -> list[dict[str, Any]] | N
     return artifact.get('department_results') if isinstance(artifact, dict) and isinstance(artifact.get('department_results'), list) else None
 
 
-def _extract_assistant_content(messages: list[Any]) -> str:
-    for msg in reversed(messages):
-        if getattr(msg, 'type', None) == 'ai' and getattr(msg, 'content', None):
-            return _extract_content(msg.content)
-    return ''
-
-
-def _requires_department_work(routing_policy) -> bool:
-    return routing_policy.category != 'direct_answer' and routing_policy.max_workers > 0
-
-
-def _suggested_workers_for_policy(routing_policy) -> list[str]:
-    if routing_policy.category == 'orc_selected':
-        return []
-    return list(dict.fromkeys([*routing_policy.required_workers, *routing_policy.allowed_workers]))[: max(0, routing_policy.max_workers)]
-
-
-def _build_guarded_agent_input(agent_input: str, routing_policy) -> str:
-    if not _requires_department_work(routing_policy):
-        return agent_input
-
-    guard = (
-        f"<mandatory_routing_contract>\n"
-        f"This request is not a tiny direct answer. You must decide which workers are necessary from the dynamic roster and call `delegate_to_departments`.\n"
-        f"- Available workers: {', '.join(routing_policy.allowed_workers) or 'none'}.\n"
-        f"- Do not include `crt`; critic review is automatic.\n"
-        f"- Worker count is not capped, but every selected worker must add distinct value.\n"
-        f"- Build `selection_rationale` first with free-text task domains and why each worker is selected.\n"
-        f"- `selection_rationale.selected_workers`, `chairman_plan` keys, and `checklist_self_check.selected_workers` must match.\n"
-        f"- Then immediately call `delegate_to_departments` in this turn.\n"
-        f"- Do not answer with a prose routing plan; without the tool artifact, this run is invalid.\n"
-        f"</mandatory_routing_contract>\n\n"
-    )
-    return guard + agent_input
-
-
 def _chunk_text(text: str, chunk_size: int = 56) -> list[str]:
     normalized = str(text or '')
     if not normalized:
@@ -164,37 +128,58 @@ def _chunk_text(text: str, chunk_size: int = 56) -> list[str]:
 
 
 def _build_agent_user_input(req: ChatRequest) -> str:
-    state = get_session_store().get_or_create(req.session_id, user_goal=req.message)
-    summary = build_orc_session_brief(state, current_user_message=req.message)
-    return summary or req.message
-
-
-async def _invoke_agent_once(agent, agent_input: str, req: ChatRequest) -> tuple[dict[str, Any], list[Any], str, dict[str, Any] | None, list[dict[str, Any]] | None]:
-    result = await agent.ainvoke({'messages': [HumanMessage(content=agent_input)]}, config={'configurable': {'thread_id': req.session_id}})
-    messages = result.get('messages', [])
-    workflow_artifact = _extract_delegate_artifact(messages)
-    department_results = _extract_department_results(messages)
-    return result, messages, _extract_assistant_content(messages), workflow_artifact, department_results
+    # Ensure the session row exists so WorldStateMiddleware can read it.
+    # The previous behaviour of prepending an `<orc_session_summary>` block
+    # to the HumanMessage is now handled by WorldStateMiddleware as a
+    # SystemMessage, which keeps the prompt prefix stable for cache hits.
+    get_session_store().get_or_create(req.session_id, user_goal=req.message)
+    return req.message
 
 
 async def _run_chat(req: ChatRequest, *, message_id: str | None = None) -> tuple[dict[str, Any], str | None, list[dict[str, Any]] | None, dict[str, Any] | None]:
-    routing_policy = _build_routing_policy(req.message)
-    requires_department_work = _requires_department_work(routing_policy)
-    base_agent_input = _build_agent_user_input(req)
-    agent_input = _build_guarded_agent_input(base_agent_input, routing_policy)
+    # Hoist message_id to the top of the call so it can serve as both the
+    # turn_id contextvar (used downstream by the delegate workflow for
+    # idempotent side-effect keys) and the eventual message id returned
+    # to the client.
+    effective_message_id = message_id or str(uuid.uuid4())
+    agent_input = _build_agent_user_input(req)
     token = set_runtime_model(req.runtime_model.model_dump() if req.runtime_model else None)
+    # Publish session_id and turn_id into the runtime_events contextvar
+    # so middlewares (e.g. WorldStateMiddleware) and the delegate
+    # workflow can resolve them even in the non-streaming path.
+    event_tokens = set_event_emitter(
+        None,
+        message_id=effective_message_id,
+        session_id=req.session_id,
+        turn_id=effective_message_id,
+    )
     try:
         agent = _get_agent(model_name=req.model_name, runtime_model=req.runtime_model)
-        result, _messages, assistant_content, workflow_artifact, department_results = await _invoke_agent_once(agent, agent_input, req)
-        if requires_department_work and not department_results:
-            raise RuntimeError(
-                f"Orc did not satisfy the mandatory routing contract for route '{routing_policy.category}': "
-                "delegate_to_departments was not called, so no final answer was delivered."
+        result = await agent.ainvoke({'messages': [HumanMessage(content=agent_input)]}, config={'configurable': {'thread_id': req.session_id}})
+        messages = result.get('messages', [])
+        assistant_content = ''
+        for msg in reversed(messages):
+            if getattr(msg, 'type', None) == 'ai' and getattr(msg, 'content', None):
+                assistant_content = _extract_content(msg.content)
+                break
+        workflow_artifact = _extract_delegate_artifact(messages)
+        cache_stats = extract_cache_usage_from_messages(messages)
+        if cache_stats['prompt']:
+            ratio = cache_stats['hit'] / max(cache_stats['prompt'], 1)
+            logger.info(
+                'cache_usage session=%s prompt=%d hit=%d miss=%d completion=%d ratio=%.2f',
+                req.session_id,
+                cache_stats['prompt'],
+                cache_stats['hit'],
+                cache_stats['miss'],
+                cache_stats['completion'],
+                ratio,
             )
         set_final_summary(req.session_id, assistant_content, status='completed')
-        return ({'id': message_id or str(uuid.uuid4()), 'role': 'assistant', 'content': assistant_content, 'createdAt': datetime.now(timezone.utc).isoformat()}, result.get('title'), department_results, workflow_artifact)
+        return ({'id': effective_message_id, 'role': 'assistant', 'content': assistant_content, 'createdAt': datetime.now(timezone.utc).isoformat()}, result.get('title'), _extract_department_results(messages), workflow_artifact)
     finally:
         reset_runtime_model(token)
+        reset_event_emitter(event_tokens)
 
 
 @router.post('/chat')
@@ -219,26 +204,31 @@ async def _stream_chat(req: ChatRequest):
         await queue.put(payload)
 
     async def runner() -> None:
-        tokens = set_event_emitter(emitter, message_id=message_id, session_id=req.session_id)
+        tokens = set_event_emitter(emitter, message_id=message_id, session_id=req.session_id, turn_id=message_id)
         try:
+            routing_policy = _build_routing_policy(req.message)
+            suggested_workers = list(dict.fromkeys([*routing_policy.required_workers, *routing_policy.allowed_workers]))[: max(0, routing_policy.max_workers)]
+            state = sync_session_checklist(
+                req.session_id,
+                build_initial_checklist(req.session_id, req.message, routing_policy.category, suggested_workers),
+                user_goal=req.message,
+                task_type=routing_policy.category,
+                selected_workers=suggested_workers,
+                run_status='running',
+            )
+            await emit_checklist_sync(state)
             await emit_run_step(step_id='orc_started', phase='orc', agent_id='orc', status='running', title='\u4e3b\u5e2d\u56e2\u6536\u5230\u95ee\u9898\uff0c\u6b63\u5728\u5206\u6790\u6d3e\u53d1\u4efb\u52a1', summary='\u6b63\u5728\u5224\u65ad\u95ee\u9898\u7c7b\u578b\u3001\u9700\u8981\u7684\u90e8\u95e8\uff0c\u4ee5\u53ca\u672c\u8f6e\u4efb\u52a1\u62c6\u5206\u65b9\u5f0f\u3002')
             message, title, department_results, workflow_artifact = await _run_chat(req, message_id=message_id)
-            state = get_session_store().get_or_create(req.session_id, user_goal=req.message)
-            if any(item.item_id == 'orc_final' for item in state.execution_checklist):
-                state = update_checklist_item(req.session_id, 'orc_final', status='done', result_preview=message.get('content', ''))
-                await emit_checklist_sync(state)
+            state = update_checklist_item(req.session_id, 'orc_final', status='done', result_preview=message.get('content', ''))
+            await emit_checklist_sync(state)
             await emit_run_step(step_id='orc_finalizing', phase='final', agent_id='orc', status='completed', title='\u4e3b\u5e2d\u56e2\u5df2\u5b8c\u6210\u6574\u5408\uff0c\u51c6\u5907\u8fd4\u56de\u7ed3\u679c', summary='\u6700\u7ec8\u7b54\u6848\u5df2\u7ecf\u51c6\u5907\u5c31\u7eea\uff0c\u6b63\u5728\u53d1\u9001\u7ed9\u7528\u6237\u3002')
-            final_content = message.get('content', '')
-            for chunk in _chunk_text(final_content):
+            for chunk in _chunk_text(message.get('content', '')):
                 await queue.put({'type': 'answer_delta', 'message_id': message_id, 'delta': chunk})
-                await queue.put({'type': 'node_output_delta', 'message_id': message_id, 'node_id': 'final:answer', 'step_id': 'orc_final_answer', 'phase': 'final', 'agent_id': 'orc', 'delta': chunk})
-            await queue.put({'type': 'node_output_done', 'message_id': message_id, 'node_id': 'final:answer', 'step_id': 'orc_final_answer', 'phase': 'final', 'agent_id': 'orc', 'status': 'completed', 'content': final_content, 'error': None})
             await queue.put({'type': 'done', 'message_id': message_id, 'message': message, 'title': title, 'department_results': department_results, 'workflow_artifact': workflow_artifact, 'checklist': [item.model_dump() for item in state.execution_checklist]})
         except Exception as exc:
             logger.error('Stream error: %s', exc, exc_info=True)
             state = update_checklist_item(req.session_id, 'orc_final', status='failed', result_preview=str(exc))
             await emit_checklist_sync(state)
-            await queue.put({'type': 'node_output_done', 'message_id': message_id, 'node_id': 'final:answer', 'step_id': 'orc_final_answer', 'phase': 'final', 'agent_id': 'orc', 'status': 'failed', 'content': '', 'error': str(exc)})
             await queue.put({'type': 'error', 'message_id': message_id, 'error': str(exc)})
         finally:
             reset_event_emitter(tokens)
