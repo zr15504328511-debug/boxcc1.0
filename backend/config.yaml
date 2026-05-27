@@ -1,66 +1,181 @@
-﻿# boxcc Python Backend Configuration
+# boxcc Python Backend Configuration
 config_version: 1
 
 models:
-  - name: deepseek-v3
-    display_name: DeepSeek V3
+  - name: gpt-5.5
+    display_name: GPT-5.5 (ikuncode)
     use: langchain_openai:ChatOpenAI
-    model: deepseek-chat
-    api_key: $DEEPSEEK_API_KEY
-    base_url: https://api.deepseek.com/v1
+    model: gpt-5.5
+    api_key: $IKUNCODE_API_KEY
+    base_url: https://api.ikuncode.cc/v1
     max_tokens: 8192
     temperature: 0.7
 
-departments:
-  max_concurrent: 4
+agents:
+  max_concurrent: 6
   timeout_seconds: 1800
 
-  agents:
-    - id: dom
-      name: 学术部
-      display_name: 学术部
-      description: 负责服装专业知识与工艺判断
-      enabled: true
-      model: inherit
-      spec_path: agentspecs/dom.md
-      skill_packs: [fabric_rag, trend_search]
+  # 扁平 agent 注册表（18 specialist + 1 critic = 19）。
+  # 每条 entry 对应 agentspecs/<id>.md 的一份 specialist spec；
+  # 详细 role 画像参考 agentspecs/roles/role-NN-*.md。
+  # 新增 agent 只需在末尾追加一条 + 写一份 spec.md，无需改 Python。
+  registry:
+    # --- 商品中心 ---
+    - id: mer_plan
+      name: 商品企划
+      one_liner: 货盘策略、品类宽深、价格带、波段、商业角色定义
+      tags: [merchandise, planning, otb]
+      spec_path: agentspecs/mer_plan.md
+      kb_refs: [product_catalog_kb, sales_inventory_kb]
+      max_turns: 20
 
-    - id: pln
-      name: 企划部
-      display_name: 企划部
-      description: 负责企划结构、SKU 与波段规划
-      enabled: true
-      model: inherit
-      spec_path: agentspecs/pln.md
-      skill_packs: [sheet_builder, calendar_planner]
+    - id: mer_ops
+      name: 商品运营
+      one_liner: SKU 售罄/动销、补调退砍清、库存健康、价格调整
+      tags: [merchandise, inventory, replenishment]
+      spec_path: agentspecs/mer_ops.md
+      kb_refs: [product_catalog_kb, sales_inventory_kb]
+      max_turns: 20
 
-    - id: ana
-      name: 经营部
-      display_name: 经营部
-      description: 负责价格、成本与经营分析
-      enabled: true
-      model: inherit
-      spec_path: agentspecs/ana.md
-      skill_packs: [sheet_builder, margin_modeler]
+    # --- 供应链中心 ---
+    - id: sup_buy
+      name: 采购
+      one_liner: 面辅料/成品采购、RFQ、PO、供应商管理、合同与对账
+      tags: [sourcing, supplier, contract]
+      spec_path: agentspecs/sup_buy.md
+      kb_refs: [supplier_capacity_kb, fabric_test_kb, compliance_contract_kb]
+      max_turns: 20
 
+    - id: sup_pmc
+      name: 生产协调
+      one_liner: 排产、物料齐套、T&A 跟单、外协、翻单可行性
+      tags: [production, pmc, leadtime]
+      spec_path: agentspecs/sup_pmc.md
+      kb_refs: [supplier_capacity_kb, sales_inventory_kb]
+      max_turns: 20
+
+    - id: sup_qc
+      name: 品质 QC
+      one_liner: AQL 抽样、来料/中检/尾检、整改、检测报告判定
+      tags: [quality, inspection, defect]
+      spec_path: agentspecs/sup_qc.md
+      kb_refs: [fabric_test_kb, compliance_contract_kb]
+      max_turns: 20
+
+    - id: sup_wms
+      name: 仓储物流
+      one_liner: 入出库、上架拣货、盘点、库存准确率、发运与退仓
+      tags: [warehouse, logistics, wms]
+      spec_path: agentspecs/sup_wms.md
+      kb_refs: [sales_inventory_kb]
+      max_turns: 20
+
+    # --- 渠道中心 ---
+    - id: chl_ch
+      name: 渠道运营
+      one_liner: 经销商/直营批发、回款、串货乱价、区域活动执行
+      tags: [channel, distributor, dealer]
+      spec_path: agentspecs/chl_ch.md
+      kb_refs: [sales_inventory_kb, compliance_contract_kb]
+      max_turns: 20
+
+    - id: chl_store
+      name: 门店运营
+      one_liner: 巡店、陈列、店员培训、连带率、店效与排班
+      tags: [retail, store, vmd]
+      spec_path: agentspecs/chl_store.md
+      kb_refs: [sales_inventory_kb, product_catalog_kb]
+      max_turns: 20
+
+    - id: chl_ec
+      name: 电商运营
+      one_liner: 天猫/抖音/小红书/直播运营、平台规则、活动与投放
+      tags: [ecommerce, livestream, platform]
+      spec_path: agentspecs/chl_ec.md
+      kb_refs: [platform_rules_kb, sales_inventory_kb, product_catalog_kb, brand_content_kb]
+      max_turns: 20
+
+    # --- 增长中心 ---
+    - id: gro_brand
+      name: 品牌营销
+      one_liner: 品牌定位、IMC、Campaign、GTM、营销日历与预算
+      tags: [brand, campaign, gtm]
+      spec_path: agentspecs/gro_brand.md
+      kb_refs: [brand_content_kb, platform_rules_kb]
+      max_turns: 20
+
+    - id: gro_pr
+      name: 公关 PR
+      one_liner: 第三方声量、媒体关系、舆情监测、危机口径与声明
+      tags: [pr, media, crisis]
+      spec_path: agentspecs/gro_pr.md
+      kb_refs: [brand_content_kb, compliance_contract_kb]
+      max_turns: 20
+
+    - id: gro_content
+      name: 内容社媒
+      one_liner: 卖点文案、抖音/小红书脚本、爆文复用、KOL/KOC brief
+      tags: [content, social, copy]
+      spec_path: agentspecs/gro_content.md
+      kb_refs: [brand_content_kb, product_catalog_kb, platform_rules_kb, compliance_contract_kb]
+      max_turns: 20
+
+    # --- 经营支持中心 ---
+    - id: biz_bi
+      name: 数据 BI
+      one_liner: 指标口径、看板、漏斗分析、归因、专题分析
+      tags: [data, bi, metric]
+      spec_path: agentspecs/biz_bi.md
+      kb_refs: [sales_inventory_kb]
+      max_turns: 20
+
+    - id: biz_fin
+      name: 财务/成本/预算
+      one_liner: 毛利测算、跌价、对账、预算、活动盈亏、应收应付
+      tags: [finance, cost, margin]
+      spec_path: agentspecs/biz_fin.md
+      kb_refs: [sales_inventory_kb, supplier_capacity_kb]
+      max_turns: 20
+
+    - id: biz_hr
+      name: HR/培训/OD
+      one_liner: 招聘、绩效、培训、组织、人效、薪酬
+      tags: [hr, training, okr]
+      spec_path: agentspecs/biz_hr.md
+      kb_refs: []
+      max_turns: 20
+
+    - id: biz_voc
+      name: 客服 VOC
+      one_liner: 退换、客诉、争议处置、责任归因、话术与 SOP
+      tags: [service, voc, csat]
+      spec_path: agentspecs/biz_voc.md
+      kb_refs: [voc_kb, product_catalog_kb]
+      max_turns: 20
+
+    - id: biz_legal
+      name: 法务/合规
+      one_liner: 合同、广告法、GB/三包、PIPL、消费争议、合规审查
+      tags: [legal, compliance, contract]
+      spec_path: agentspecs/biz_legal.md
+      kb_refs: [compliance_contract_kb]
+      max_turns: 20
+
+    - id: biz_it
+      name: IT/数据中台
+      one_liner: ERP/PLM/OMS/WMS、接口、主数据、权限、上线运维
+      tags: [it, platform, integration]
+      spec_path: agentspecs/biz_it.md
+      kb_refs: []
+      max_turns: 20
+
+    # --- 风控（critic） ---
     - id: crt
-      name: 质检部
-      display_name: 质检部
-      description: 负责风控、复核并审查各部门的综合方案
-      enabled: true
-      model: inherit
+      name: 风控评审
+      one_liner: 跨域审查、矛盾消解、合规与口径把关、最终交付决策
+      tags: [critic]
       spec_path: agentspecs/crt.md
-      skill_packs: [code_review, web_review, image_review, video_review, artifact_review]
-      max_turns: 15
-
-    - id: cpy
-      name: 宣传部
-      display_name: 宣传部
-      description: 负责卖点翻译、传播表达与文案输出
-      enabled: true
-      model: inherit
-      spec_path: agentspecs/cpy.md
-      skill_packs: [trend_search, ppt_outline]
+      kb_refs: [compliance_contract_kb]
       max_turns: 15
 
 lead_agent:
@@ -89,3 +204,346 @@ checkpointer:
 server:
   host: 127.0.0.1
   port: 18900
+
+# 知识库注册表。orc 在每轮决定是否调用、把哪个 KB 指派给哪个 worker
+# （通过 chairman_plan 中各 task_packet 的 kb_refs 字段）。
+# retriever: noop 表示尚未接入真实检索后端，返回占位提示。
+knowledge_bases:
+  - id: product_catalog_kb
+    name: 商品与款式知识库
+    description: 款号、系列、品类、价格、卖点、尺码颜色、上市波段、生命周期、搭配建议、历史表现
+    retriever: noop
+
+  - id: fabric_test_kb
+    name: 面辅料与测试知识库
+    description: 面料成分、克重、门幅、色牢度、缩水、起球、洗护、辅料规格、检测报告、替代料
+    retriever: chroma
+
+  - id: supplier_capacity_kb
+    name: 供应商与产能库
+    description: 供应商档案、品类能力、报价、MOQ、交期、准交、质量、合同、风险记录
+    retriever: noop
+
+  - id: sales_inventory_kb
+    name: 销售库存经营数据集
+    description: ERP/POS/OMS/WMS/电商平台销售、库存、退货、折扣、毛利、补调退、库龄
+    retriever: noop
+
+  - id: platform_rules_kb
+    name: 平台规则与营销知识库
+    description: 天猫/抖音/小红书等活动规则、指标定义、违规案例、投放/直播/内容打法
+    retriever: noop
+
+  - id: brand_content_kb
+    name: 品牌内容资产库
+    description: 品牌定位、口吻规范、视觉素材、卖点手册、新闻稿、脚本、爆文案例、禁用词
+    retriever: chroma
+
+  - id: compliance_contract_kb
+    name: 合规与合同知识库
+    description: 合同模板、条款库、广告法风险词、GB/行业标准、产品标签、消费者争议案例、授权文件
+    retriever: chroma
+
+  - id: voc_kb
+    name: VOC 与客诉知识库
+    description: 聊天记录摘要、退货原因、差评、客诉证据、处理话术、责任归因、整改闭环
+    retriever: noop
+
+# 产物模板库。每个条目定义一种成品的「骨架 + 谁出料 + 怎么评审」：
+# - triggers：用户表述里出现这些关键词时，orc 会优先匹配此模板
+# - output_tool：最终调用的导出工具
+# - structure：成品的章节/版块骨架，orc 据此填 spec
+# - worker_contribution_map：每个 worker 的输出归到哪些 section（驱动 chairman_plan）
+# - quality_gates：交给 critic 作为审稿 checklist
+# 新增产物只需在末尾追加一条，无需改 Python。
+deliverable_types:
+  - id: management_ppt
+    name: 管理层 PPT 汇报
+    description: 季度复盘、投资人路演、跨部门会审、新品发布提案。视觉化的 8-15 页 PPT，每页一个想法。
+    triggers:
+      - PPT
+      - ppt
+      - 幻灯片
+      - 汇报
+      - 复盘
+      - 会审
+      - 提案
+      - 发布提案
+      - 路演
+      - 季度报告
+    output_tool: create_management_ppt
+    default_theme: editorial
+    voice: 克制、专业、数据先行、避免营销腔。每页一个核心结论，用数字 / 卡片 / 短句而不是堆叠 bullet。
+    suggested_workers: [gro_brand, gro_content, biz_fin, biz_legal, biz_bi, mer_ops, chl_ec]
+    required_workers: []
+    structure:
+      - type: cover
+        required: true
+        max_count: 1
+        notes: 封面页。meta 里给 title/subtitle/author/date/brand 即可，无需 blocks。
+      - type: agenda
+        required: true
+        max_count: 1
+        notes: 议程页，items 为章节名列表（与后续 divider 对齐）。3-5 条。
+      - type: divider
+        required: false
+        min_count: 0
+        max_count: 4
+        repeats: chapters
+        notes: 章节分隔页，title 与 agenda 中对应项一致；intro 一句话引导。
+      - type: content
+        required: true
+        min_count: 3
+        max_count: 10
+        repeats: ideas
+        notes: |
+          内容页。每页一个 idea，title + 可选 eyebrow + lead（一句话结论）+ blocks 列表。
+          blocks 可用：bullets / cards (最多4)/ callout / kv / paragraph。不要全用 bullets，
+          适当混搭 cards (用于核心卖点)+ callout (用于关键风险/边界) + kv (用于规格 / 关键数据)。
+      - type: data
+        required: false
+        min_count: 0
+        max_count: 4
+        repeats: data_points
+        notes: 数据页。title + takeaway 一句话 + chart {type:bar|line|pie, categories/series/labels/values, title}。每页只放一张图。
+      - type: closing
+        required: true
+        max_count: 1
+        notes: 收尾页。actions 列表（owner/action/due）+ decisions 列表（待决策问题）。
+    worker_contribution_map:
+      gro_brand: [系列定位/品牌故事 content, 营销主张 callout]
+      gro_content: [内容投放节奏 content, KOL 分层 cards]
+      biz_fin: [预算分配 data, 毛利测算 data, 成本边界 callout]
+      biz_legal: [合规边界 content (callout), 上线流程 bullets]
+      biz_bi: [核心指标 data, 渠道对比 data]
+      mer_ops: [产品矩阵 cards, 售罄/库销 data]
+      chl_ec: [电商节奏 data, 平台分货 data]
+    quality_gates:
+      - 是否包含 cover + agenda + closing（缺一即不合格）
+      - 章节分隔页是否与 agenda 列表对齐
+      - 是否至少 1 张 data slide 用真实数字驱动（避免纯口号）
+      - 每个 content slide 是否有 lead 一句话结论（不是只列 bullets）
+      - 是否出现绝对化词（最、第一、永远、100%）—— 出现即返工
+      - 财务/成本数据是否有 biz_fin 的输入支撑（不能凭空造数）
+      - closing 是否同时给出 actions 和 decisions（执行项 + 待决项）
+
+  - id: product_detail_page
+    name: 商品详情页
+    description: 单品详情页 HTML，用于电商上线、内部审稿、私域 H5。结构化、可验证、合规友好。
+    triggers:
+      - 详情页
+      - 商品页
+      - 产品页
+      - 卖点页
+      - landing
+      - product page
+      - PDP
+    output_tool: create_product_detail_page
+    default_theme: ""  # 当前 PDP 用 product_detail.py 内置主题；模板不强制
+    voice: 真实、克制、场景化。避免绝对化与无法证明的卖点，每条卖点都能在面料/检测/吊牌里找证据。
+    suggested_workers: [gro_content, gro_brand, biz_legal, mer_plan, biz_voc, sup_qc]
+    required_workers: [gro_content, biz_legal]
+    structure:
+      - type: hero
+        required: true
+        max_count: 1
+        notes: |
+          头部：product_name + tagline + category chip + season + price/original_price。
+          tagline 不要是品牌口号，要是「这件衣服在用户日常的位置」一句话。
+      - type: highlights
+        required: true
+        min_count: 3
+        max_count: 6
+        repeats: selling_points
+        notes: |
+          核心卖点卡片。每张 = icon + title + desc。icon 用 emoji，title 4-10 字，desc 12-30 字。
+          desc 必须可验证（成分/克重/版型/场景），不写「最」「永远」之类。
+      - type: fabric
+        required: true
+        min_count: 3
+        max_count: 8
+        repeats: spec_rows
+        notes: 面料规格表 label/value 对。要包含成分、克重、执行标准、安全类别。
+      - type: size_table
+        required: true
+        max_count: 1
+        notes: 尺码表 headers + rows + note。size note 说明测量方式与允差。
+      - type: scenes
+        required: false
+        min_count: 0
+        max_count: 5
+        repeats: outfit_scenes
+        notes: 搭配场景卡片。title (4-8 字场景名) + desc (一句穿搭叙述)。
+      - type: care
+        required: true
+        min_count: 2
+        max_count: 6
+        repeats: care_items
+        notes: 洗护说明 icon + text。覆盖洗涤/漂白/熨烫/晾置/存放。
+      - type: faq
+        required: true
+        min_count: 2
+        max_count: 6
+        repeats: faq_pairs
+        notes: |
+          常见问题 q/a。优先包含起球、缩水、尺码偏差、褶皱处理、面料过敏。
+          答复要给出执行方法或证据（GB 标准 / 测试等级 / 试穿数据）。
+      - type: compliance_note
+        required: true
+        max_count: 1
+        notes: 页脚合规提示：本页内容以吊牌/水洗标/检测报告为准；售后政策见官网。法务必审。
+    worker_contribution_map:
+      gro_content: [hero tagline, highlights, scenes, faq 文案]
+      gro_brand: [hero category positioning, tagline tone]
+      biz_legal: [compliance_note, highlights desc 合规过审, faq 答复合规过审]
+      mer_plan: [fabric 规格, size_table]
+      biz_voc: [faq 选题（基于历史客诉）, care 痛点对齐]
+      sup_qc: [fabric 数据（成分/克重/检测）, faq 起球/缩水回答的证据]
+    quality_gates:
+      - 是否所有必备 section 都有内容（hero/highlights/fabric/size_table/care/faq/compliance_note）
+      - highlights 是否每条都有可验证证据（不能只是营销词）
+      - 是否出现绝对化词或无法证明的功效（最、永久、100%、零起球、零褪色 等）
+      - fabric 是否包含成分、克重、执行标准、安全类别四项基础
+      - faq 答复是否给出具体方法或测试依据（不是泛泛的"请联系客服"）
+      - compliance_note 是否到位（法务必须过签）
+
+  - id: xhs_note
+    name: 小红书笔记
+    description: 单篇小红书种草笔记，用于新品试穿、场景分享、内容投放初稿。强调真实体验、痛点共鸣和合规披露。
+    triggers:
+      - 小红书
+      - xhs
+      - 笔记
+      - 种草
+      - 社媒文案
+      - 小红书选题
+    output_tool: create_markdown
+    default_theme: ""  # 当前小红书笔记暂用 markdown 输出；模板不强制视觉主题
+    voice: 第一人称、真实、克制、避免硬广腔。多用「试穿感」「日常场景」「分享」「踩雷点」这类语感，少用夸张营销词。
+    suggested_workers: [gro_content, biz_voc, biz_legal]
+    required_workers: [gro_content, biz_legal]
+    structure:
+      - type: title
+        required: true
+        min_count: 1
+        max_count: 1
+        notes: 钩子标题，15-22 字。要像真实用户分享，不写夸张承诺；可用场景、痛点、试穿结果做钩子。
+      - type: hook
+        required: true
+        min_count: 1
+        max_count: 1
+        notes: 开头 2-3 句抓人开篇。第一人称进入，点出为什么试这件/这类商品，以及用户可能遇到的穿搭困扰。
+      - type: pain_points
+        required: true
+        min_count: 2
+        max_count: 4
+        repeats: pain_points
+        notes: 痛点 / 试错点 / 选品困扰。每条要具体到身材、场景、季节、预算、面料或洗护，不写泛泛的"很好看"。
+      - type: product_intro
+        required: true
+        min_count: 3
+        max_count: 5
+        notes: 产品介绍，3-5 句。覆盖面料、版型、价格区间和适用季节；所有卖点都要可验证，不能写绝对化功效。
+      - type: try_on
+        required: true
+        min_count: 3
+        max_count: 5
+        notes: 真实试穿感受 / 尺码身高数据，3-5 句。必须包含身高体重或身材参考、试穿尺码、松紧/长度/活动量。
+      - type: outfit_combos
+        required: true
+        min_count: 2
+        max_count: 4
+        repeats: looks
+        notes: 搭配场景 / 多组 look。每组写清上装/下装/鞋包和适合场景，如通勤、周末、旅行、约会。
+      - type: tips
+        required: false
+        min_count: 2
+        max_count: 4
+        repeats: tips
+        notes: 实用建议 / 洗护 / 避雷。优先写尺码选择、面料护理、颜色搭配、容易踩雷的购买前注意事项。
+      - type: hashtags
+        required: true
+        min_count: 5
+        max_count: 10
+        repeats: hashtags
+        notes: 话题标签，5-10 个。覆盖品类、场景、身材、风格和品牌/系列关键词；避免堆无关热词。
+      - type: compliance_note
+        required: true
+        min_count: 1
+        max_count: 1
+        notes: 合规提示，1-2 句。必须含合作披露（如"本篇含品牌合作/样衣体验"）和避绝对化词说明，法务必审。
+    worker_contribution_map:
+      gro_content: [title, hook, product_intro, try_on, outfit_combos, tips, hashtags]
+      biz_voc: [pain_points, tips 避雷点, faq 式疑虑素材]
+      biz_legal: [compliance_note, title/hook 合规过审, product_intro 卖点合规过审]
+    quality_gates:
+      - 是否包含合作披露或样衣体验披露（缺失即返工）
+      - 是否避开绝对化词和无法证明的功效承诺（最、第一、永远、100%、零起球等）
+      - 是否包含真实试穿数据（身高体重/身材参考/尺码/长度或松紧反馈）
+      - pain_points 是否具体到用户困扰、场景或试错点，而不是空泛种草
+      - 是否包含 5-10 个相关 hashtag，且不堆无关热词
+      - product_intro 是否覆盖面料、版型、价格区间并有证据边界
+      - 文风是否像第一人称分享，避免硬广腔和强促销话术
+
+  - id: inventory_report
+    name: 库存分析报告
+    description: 库存周报/月报 XLSX，多 sheet 输出库存健康度、滞销、断码断货、补货建议和财务影响。
+    triggers:
+      - 库存分析
+      - 补货建议
+      - 滞销
+      - 断码
+      - 库龄
+      - 库销比
+      - 补调退
+      - 库存周报
+    output_tool: create_xlsx
+    default_theme: ""  # xlsx 输出不使用视觉主题
+    voice: 数据先行、结论靠后、不臆造数字。每个建议必须挂数据依据，并标注数据快照时间、来源和置信度。
+    suggested_workers: [biz_bi, mer_ops, sup_wms, biz_fin]
+    required_workers: [biz_bi, mer_ops]
+    structure:
+      - type: summary_sheet
+        required: true
+        min_count: 1
+        max_count: 1
+        notes: 总览 sheet。核心指标 KV 表，至少包含数据快照时间、库存总值、库龄结构、售罄率、动销率、库销比和关键结论。
+      - type: sku_health_sheet
+        required: true
+        min_count: 1
+        max_count: 1
+        notes: SKU 健康度表。列：款号/品类/在库/在途/30天销量/库龄/库销比/状态标签；状态标签要能支撑后续建议。
+      - type: slow_movers_sheet
+        required: true
+        min_count: 1
+        max_count: 1
+        notes: 滞销榜。聚焦库龄 >90 天或动销明显偏低的 SKU，含原因初判、清仓建议、建议折扣或处理路径。
+      - type: stockouts_sheet
+        required: true
+        min_count: 1
+        max_count: 1
+        notes: 断码/断货榜。必须到尺码维度，包含可售天数、缺码影响、补货建议优先级和是否可调拨。
+      - type: replenishment_sheet
+        required: true
+        min_count: 1
+        max_count: 1
+        notes: 补货建议。列：款号/建议补量/置信度/依据；依据要引用销量、库存、在途、交期或活动节奏，不凭空给数。
+      - type: finance_impact_sheet
+        required: true
+        min_count: 1
+        max_count: 1
+        notes: 财务影响。覆盖跌价计提、资金占用、清仓回流、毛利影响；金额口径必须由 biz_fin 或明确数据源支撑。
+    worker_contribution_map:
+      biz_bi: [summary_sheet 指标口径, sku_health_sheet 数据清洗, 数据快照时间/来源]
+      mer_ops: [sku_health_sheet 状态标签, slow_movers_sheet 清仓建议, stockouts_sheet 断码判断, replenishment_sheet 补货建议]
+      sup_wms: [sku_health_sheet 库存准确率提示, stockouts_sheet 仓库/门店可调拨性, 在库/在途校验]
+      biz_fin: [finance_impact_sheet 跌价计提, 资金占用, 清仓回流和毛利影响]
+    quality_gates:
+      - 是否齐备 6 个 sheet（summary/sku_health/slow_movers/stockouts/replenishment/finance_impact）
+      - 所有核心数据是否标注来源依据和数据快照时间
+      - 是否同时给出补货、清仓、调拨三类建议，而不是只做描述
+      - 补货建议是否标注置信度，并说明销量/库存/在途/交期依据
+      - 是否包含财务影响（跌价计提、资金占用、清仓回流或毛利影响）
+      - 是否避免臆造数字；缺数据时是否明确标注缺口和假设
+      - 滞销与断货判断是否有阈值或口径说明（如库龄>90天、可售天数、库销比）
+      - SKU 健康度状态标签是否能被后续动作追溯解释

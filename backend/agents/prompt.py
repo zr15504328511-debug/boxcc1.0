@@ -1,30 +1,30 @@
 """System prompt templates for the lead agent."""
 
+from agents.master_prompt import load_master_prompt
 from agents.spec_loader import load_prompt_spec
 from config.app_config import get_app_config
-from subagents.registry import get_department_configs
 
 CHAIRMAN_PLAN_SCHEMA = """
 ## `chairman_plan` contract
-- `chairman_plan` must be a JSON object.
-- Pass `chairman_plan` to the tool as an object, not as a string containing JSON.
-- Keys may only be selected worker IDs from the dynamic worker roster shown above.
+- `chairman_plan` must be a JSON object mapping worker agent IDs to task packets.
+- Keys may **only** be IDs of enabled worker agents shown in the Agent Catalog above.
 - Never include `crt` in `chairman_plan`; critic review is automatic in phase 2.
-- Each value must be a full structured task packet with these fields:
+- Each value must be a structured task packet with these required fields:
   `objective`, `task`, `context`, `constraints`, `required_output`,
-  `requested_skill_packs`, `priority`, `notes`, `success_criteria`.
+  `priority`, `notes`, `success_criteria`.
+- Each value MAY also include these optional fields:
+  - `attached_history`: array of `{"role": "user"|"assistant", "content": "..."}`
+    fragments. Use this to hand-pick a small number of prior conversation
+    turns the worker needs to see. Default: omit or empty. Workers are
+    stateless — they will NOT see history you do not attach here.
+  - `kb_refs`: array of knowledge-base ids you authorise this worker to
+    consult for this task. Must be a subset of the agent's registered
+    `kb_refs` plus the KB registry in boxcc.md. Default: omit or empty.
 - Do not emit empty tasks or placeholder tasks.
-- `requested_skill_packs` must be a subset of the selected worker's registered skill packs.
-
-## `selection_rationale` contract
-- Whenever you call `delegate_to_departments`, you must also send `selection_rationale` as an object.
-- `task_domains` is free text chosen by you, not a fixed enum.
-- It must contain: `task_summary`, `task_domains`, `selected_workers`, `why_selected`, and optional `why_not_selected`.
-- `selected_workers` must exactly match the keys in `chairman_plan`.
-- `why_selected` must explain every selected worker.
 
 ## `checklist_draft` contract
-- Whenever you call `delegate_to_departments`, you must also send `checklist_draft` as an array of checklist items.
+- Whenever you call `delegate_to_departments`, you must also send `checklist_draft` as JSON.
+- `checklist_draft` must be a JSON array of checklist items.
 - Each checklist item must include: `item_id`, `title`, `owner`, `depends_on`.
 - The first checklist item must belong to `orc`.
 - The last checklist item must belong to `orc`.
@@ -33,37 +33,38 @@ CHAIRMAN_PLAN_SCHEMA = """
 - Keep the draft compact: normally 3-8 items.
 
 ## `checklist_self_check` contract
-- Whenever you call `delegate_to_departments`, you must also send `checklist_self_check` as an object.
+- Whenever you call `delegate_to_departments`, you must also send `checklist_self_check` as JSON.
 - It must contain: `passed`, `issues`, `fixes`, `selected_workers`.
 - Only send `passed=true` if the checklist fully covers routing, execution, verification, and final delivery.
 - `selected_workers` must exactly match the workers in `chairman_plan`.
 - If the self-check finds issues, fix the checklist before calling the tool.
 """.strip()
 
-def _worker_roster_block(departments_description: str, critic_description: str) -> str:
-    return f"""
-## Dynamic worker roster
-Selectable workers:
-{departments_description}
+HARD_ROUTING_RULES = """
+## Routing discipline (light pre-filter + your LLM judgment)
 
-Automatic critic:
-{critic_description or '- none'}
+The system only enforces a few safety rules; everything else is your call.
 
-Only IDs listed under selectable workers may be used as `chairman_plan` keys.
-""".strip()
+**Direct answer (no delegate):**
+- Greetings, thanks, tiny chit-chat
+- Single-fact lookups answerable from boxcc.md alone
 
-ROUTING_POLICY = """
-## Worker selection policy
-You choose workers yourself from the dynamic roster.
+**Integrated review (all workers):**
+- Explicit "完整方案 / 全方案 / 跨部门评审 / 一站到底" requests
+- Brand-new launch decks that need all functions in one pass
 
-- Use no workers for greetings, tiny chit-chat, or very simple Q&A.
-- Select only workers that add necessary, non-overlapping value to the user goal.
-- Do not broadcast to all workers just because they exist.
-- Long or multi-domain tasks may use many workers when each has a distinct responsibility.
-- Newly added workers in the roster are valid candidates when their description or skill packs directly match the task.
-- `crt` is not a selectable worker; critic review runs automatically after worker execution.
-- If two workers seem similar, choose the one whose description best matches the requested deliverable.
-- Every selected worker needs a concrete task packet that could stand alone without the full conversation.
+**Mandatory inclusions (system-enforced):**
+- Any mention of `合同 / contract` → must include `biz_legal`
+- Any mention of `召回 / 12315 / 集体投诉 / 维权 / class action` → must include `biz_legal` + `biz_voc`
+- Any mention of `广告法 / 禁用词 / 绝对化` → must include `biz_legal` + `gro_content`
+- Any mention of `退货率 / 退换 / 退货原因` → must include `biz_voc` + `mer_ops`
+- Any mention of `跌价 / 库存减值 / writedown` → must include `biz_fin` + `mer_ops`
+- Any mention of `PIPL / 数据安全 / 隐私 / 权限` → must include `biz_legal` + `biz_it`
+
+**Open routing (your judgment, cap 6):**
+- Everything else. Read the Agent Catalog above, match the user's intent
+  to each agent's `one_liner` and `tags`, and pick the smallest viable set.
+  Bias toward fewer, sharper agents over many shallow ones.
 """.strip()
 
 GLOBAL_ORCHESTRATION_RULES = """
@@ -72,9 +73,20 @@ GLOBAL_ORCHESTRATION_RULES = """
 - You decide whether to call workers; the UI toggles are not binding.
 - Workers do not see the full user conversation. Your task packet must contain the necessary context, constraints, and output requirements.
 - Prefer the smallest useful worker set.
-- For large tasks, use as many workers as are genuinely necessary; precision matters more than a fixed worker cap.
-- Checklist creation is your responsibility: draft the execution checklist before delegation.
+- **Checklist before delegate (hard rule):** Every call to
+  `delegate_to_departments` MUST be preceded — within the same turn —
+  by a freshly updated `checklist_draft` that reflects the current
+  task. Never delegate first and rationalise the checklist after. If
+  the checklist has not changed since last turn, still emit it so the
+  state machine reflects the latest state.
 - Treat checklist generation as part of orchestration, not as a UI-only artifact.
+- Workers receive a `<world_state>` snapshot built from your latest
+  checklist + worker shards. Updating the checklist is therefore how
+  you brief every worker — sloppy checklist = sloppy briefing.
+- For each worker task packet you may attach `attached_history`
+  (curated prior turns the worker actually needs) and `kb_refs`
+  (knowledge bases that worker may consult). Default both to empty
+  unless you have a concrete reason.
 - If tool validation fails, correct the routing, checklist, or packet and try again.
 - The final answer must absorb the critic conclusion.
 - Do not expose internal reasoning or tool-call traces to the user.
@@ -82,10 +94,11 @@ GLOBAL_ORCHESTRATION_RULES = """
 
 FAILURE_RECOVERY_RULES = """
 ## Pre-flight checklist
-- Confirm your `selection_rationale` explains the task domains and worker choices.
-- Confirm `chairman_plan` is a structured object with worker IDs as keys.
-- Confirm `selection_rationale.selected_workers` exactly matches `chairman_plan` keys.
+- Confirm `chairman_plan` is valid JSON.
+- Confirm every selected worker ID exists in the Agent Catalog above.
+- Confirm any mandatory agents from the hard routing rules are included.
 - Confirm `crt` is not in `chairman_plan`.
+- Confirm worker count does not exceed 6 (or all-enabled for integrated_review).
 - Confirm `checklist_draft` covers intake, execution, verification, and final delivery.
 - Confirm `checklist_self_check` passes and matches the selected workers.
 """.strip()
@@ -95,59 +108,70 @@ LEAD_OUTPUT_CONTRACT = """
 - Start with the conclusion.
 - Then provide the supporting breakdown and actions.
 - Distinguish clearly between conclusions, assumptions, risks, and next steps.
-- If departments disagree, name the conflict and recommend a tradeoff.
+- If agents disagree, name the conflict and recommend a tradeoff.
 """.strip()
 
 
-def build_lead_system_prompt() -> str:
-    """Build the lead agent's system prompt with department descriptions."""
+def build_agent_catalog() -> str:
+    """Render the enabled worker agents as a compact catalog for orc's prompt.
+
+    Each line: `- <id>: <name> — <one_liner> [<tags>]`. orc reads this
+    catalog and picks agents from it; full specs are only loaded for
+    agents actually selected via `chairman_plan`.
+    """
     config = get_app_config()
-    departments = get_department_configs()
-
-    worker_depts = [d for d in departments if d.id != 'crt']
-    dept_lines = [
-        f"- {d.id}: {d.name} ({d.display_name or d.id}) | {d.description} | skill packs: {', '.join(d.skill_packs) if d.skill_packs else 'none'}"
-        for d in worker_depts
-    ]
-    departments_description = "\n".join(dept_lines) if dept_lines else '- none'
-
-    critic = next((d for d in departments if d.id == 'crt'), None)
-    critic_description = ''
+    workers = config.get_worker_agents()
+    if not workers:
+        return "- (no enabled agents)"
+    lines = []
+    for a in workers:
+        tags = f" [{', '.join(a.tags)}]" if a.tags else ""
+        lines.append(f"- `{a.id}`: {a.name} — {a.one_liner}{tags}")
+    critic = config.get_critic_agent()
     if critic:
-        critic_description = f"- crt: {critic.name} ({critic.display_name or critic.id}) | {critic.description}"
+        lines.append(f"\n(System will auto-invoke `{critic.id}` ({critic.name}) in Phase 2 for cross-agent review.)")
+    return "\n".join(lines)
+
+
+def build_lead_system_prompt() -> str:
+    """Build the lead agent's system prompt with the dynamic agent catalog."""
+    config = get_app_config()
 
     template = load_prompt_spec(config.lead_agent.spec_path, config.lead_agent.system_prompt)
     if not template:
         template = """
 You are the boxcc orchestrator (`orc`).
 
-Available worker departments:
-{departments_description}
+## Agent Catalog (your roster of specialist agents)
 
-Critic department:
-{critic_description}
+{agent_catalog}
 
-Your workflow:
-1. Classify the user request.
-2. Select the minimal valid worker set according to the routing policy.
-3. Build `chairman_plan` and call `delegate_to_departments` when collaboration is needed.
-4. Read worker outputs and critic review.
-5. Produce the final answer.
+## Your workflow
 
-For simple greetings or tiny Q&A, answer directly without delegation.
+1. Read the user request.
+2. Read the catalog above. Choose the smallest set of agents whose
+   `one_liner` / `tags` match what's needed.
+3. Build a structured `chairman_plan` and call `delegate_to_departments`.
+4. Read worker results + critic review, then produce the final answer.
+
+For greetings or single-fact lookups, answer directly without delegation.
         """.strip()
 
-    rendered = (
-        template
-        .replace('{departments_description}', departments_description)
-        .replace('{critic_description}', critic_description or '- none')
-    )
-    return "\n\n".join([
+    rendered = template.replace('{agent_catalog}', build_agent_catalog())
+
+    # boxcc.md (master constitution) sits at the very top of every agent's
+    # system prompt to maximise prompt-cache hits across providers that key
+    # on prefix bytes. Skip silently if the file is empty/missing.
+    sections: list[str] = []
+    master = load_master_prompt()
+    if master:
+        sections.append(master)
+    sections.extend([
         rendered.strip(),
-        _worker_roster_block(departments_description, critic_description),
         CHAIRMAN_PLAN_SCHEMA,
-        ROUTING_POLICY,
+        HARD_ROUTING_RULES,
         GLOBAL_ORCHESTRATION_RULES,
         FAILURE_RECOVERY_RULES,
         LEAD_OUTPUT_CONTRACT,
     ])
+    return "\n\n".join(sections)

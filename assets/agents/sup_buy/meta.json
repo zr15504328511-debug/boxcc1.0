@@ -1,0 +1,20 @@
+{
+  "id": "sup_buy",
+  "name": "采购",
+  "animal": "河狸",
+  "department": "供应链中心",
+  "color": "工业黄+棕",
+  "accent": "#d49b18",
+  "secondary": "#8a5a2b",
+  "prop": "面料样卡",
+  "personality": "务实会谈判，永远带着样卡和备选供应商。",
+  "fullImage": "assets/agents/sup_buy/full.png",
+  "headshotImage": "assets/agents/sup_buy/headshot.png",
+  "imagegenPrompts": {
+    "full": "Create a polished original animal office mascot in a Duolingo-inspired friendly flat vector character system for Boxcc, a professional fashion retail multi-agent workspace. Do not copy Duolingo characters or trademarks; use friendly geometric character design, expressive eyes, simple rounded bodies, bold silhouettes, humor, and app-icon readability. Character: 河狸, representing 采购. Single symbolic object only: 面料样卡. No extra reports, no extra papers, no clipboards, no folders, no dashboards, no labels, no text. Style: premium flat vector illustration, clean geometric body, professional but funny, transparent-background-ready subject.",
+    "headshot": "Create a simplified vector animal avatar icon from the same mascot identity. Head-only, no hands, no props, no body except a tiny collar color accent if needed. Use 4-6 main color blocks, bold silhouette, clean flat shapes, and app-icon readability at 32px."
+  },
+  "symbol": "面料样卡",
+  "style": "Duolingo-inspired original friendly flat vector mascot, single symbolic object",
+  "sourceSheet": "assets/agents/single-source/sup_buy.png"
+}

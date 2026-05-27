@@ -61,13 +61,29 @@ def format_conversation_for_update(messages: list[Any]) -> str:
 
 
 def format_memory_for_injection(memory_data: dict[str, Any], max_tokens: int = 2000) -> str:
-    """Format memory data for injection into the system prompt."""
+    """Legacy single-block formatter. Prefer `format_memory_split` for
+    prompt-cache-friendly injection. Kept for backwards compatibility."""
+    core = format_memory_core(memory_data)
+    facts = format_memory_facts(memory_data, max_tokens=max_tokens)
+    parts = [p for p in (core, facts) if p]
+    result = "\n\n".join(parts)
+    char_limit = max_tokens * 4
+    if len(result) > char_limit:
+        result = result[: char_limit] + "..."
+    return result
+
+
+def format_memory_core(memory_data: dict[str, Any]) -> str:
+    """Stable "core profile" memory: user + history summaries.
+
+    These sections are written by the memory updater as full-string
+    summaries that turn over slowly, so injecting them as their own
+    block maximises prompt-cache hits across turns.
+    """
     if not memory_data:
         return ""
+    parts: list[str] = []
 
-    parts = []
-
-    # User context
     user = memory_data.get("user", {})
     for key in ["workContext", "personalContext", "topOfMind"]:
         section = user.get(key, {})
@@ -76,7 +92,6 @@ def format_memory_for_injection(memory_data: dict[str, Any], max_tokens: int = 2
             label = {"workContext": "工作背景", "personalContext": "个人偏好", "topOfMind": "当前关注"}[key]
             parts.append(f"[{label}] {summary}")
 
-    # History
     history = memory_data.get("history", {})
     for key in ["recentMonths", "earlierContext"]:
         section = history.get(key, {})
@@ -85,21 +100,39 @@ def format_memory_for_injection(memory_data: dict[str, Any], max_tokens: int = 2
             label = {"recentMonths": "近期历史", "earlierContext": "早期背景"}[key]
             parts.append(f"[{label}] {summary}")
 
-    # Facts (sorted by confidence, limited by token budget)
-    facts = memory_data.get("facts", [])
-    if facts:
-        sorted_facts = sorted(facts, key=lambda f: f.get("confidence", 0), reverse=True)
-        fact_lines = []
-        for f in sorted_facts[:20]:  # Max 20 facts
-            fact_lines.append(f"- {f.get('content', '')}")
-        if fact_lines:
-            parts.append("[关键事实]\n" + "\n".join(fact_lines))
+    return "\n\n".join(parts)
 
-    result = "\n\n".join(parts)
 
-    # Rough token limit (4 chars ≈ 1 token for Chinese)
+def format_memory_facts(memory_data: dict[str, Any], *, max_tokens: int = 2000, max_facts: int = 40) -> str:
+    """Append-only facts block, ordered by `createdAt` ascending.
+
+    Sorting by creation time (oldest first) means new facts always land at
+    the end of the rendered block, so existing prefix bytes never shift.
+    This is the property that keeps providers' prompt cache happy.
+
+    If we exceed the max-facts cap we drop from the front (oldest), which
+    will break the cache once but keeps the tail stable thereafter.
+    """
+    facts = list(memory_data.get("facts", []))
+    if not facts:
+        return ""
+
+    def _ts(fact: dict[str, Any]) -> str:
+        # Fall back to id so ordering is at least deterministic.
+        return str(fact.get("createdAt") or fact.get("id") or "")
+
+    facts.sort(key=_ts)
+    if len(facts) > max_facts:
+        facts = facts[-max_facts:]
+
+    lines = [f"- {f.get('content', '').strip()}" for f in facts if f.get("content")]
+    if not lines:
+        return ""
+
+    rendered = "[关键事实]\n" + "\n".join(lines)
     char_limit = max_tokens * 4
-    if len(result) > char_limit:
-        result = result[:char_limit] + "..."
-
-    return result
+    if len(rendered) > char_limit:
+        # Trim from the front (oldest) to keep the tail stable.
+        excess = len(rendered) - char_limit
+        rendered = rendered[excess:]
+    return rendered

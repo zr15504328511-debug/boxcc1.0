@@ -11,23 +11,44 @@ from session.state import ChecklistItem, OrcSessionState, TaskArtifact, Validati
 from session.store import get_session_store
 
 
-_ALLOWED_OWNERS = {"orc", "dom", "pln", "ana", "cpy", "crt", "system"}
+_SPECIALIST_OWNERS = {
+    "mer_plan", "mer_ops",
+    "sup_buy", "sup_pmc", "sup_qc", "sup_wms",
+    "chl_ch", "chl_store", "chl_ec",
+    "gro_brand", "gro_pr", "gro_content",
+    "biz_bi", "biz_fin", "biz_hr", "biz_voc", "biz_legal", "biz_it",
+}
+_ALLOWED_OWNERS = {"orc", *_SPECIALIST_OWNERS, "crt", "system"}
 _VERIFY_STEP_OWNERS = {"crt", "system"}
-_WORKER_OWNERS = {"dom", "pln", "ana", "cpy"}
+_WORKER_OWNERS = set(_SPECIALIST_OWNERS)
 
 INTAKE_ITEM_ID = "orc_intake"
 VERIFY_ITEM_ID = "critic_review"
 FINAL_ITEM_ID = "orc_final"
 
 INTAKE_TITLE = '主席团分析问题并拆解任务'
-VERIFY_TITLE = '质检部复核关键风险与交付质量'
+VERIFY_TITLE = '风控部复核关键风险与交付质量'
 FINAL_TITLE = '主席团整合验证结论并返回结果'
 
 _TITLE_MAP = {
-    "dom": '学术部分析风险与工艺',
-    "pln": '企划部整理开发方案与规避动作',
-    "ana": '经营部核算成本与经营指标',
-    "cpy": '宣传部整理表达与传播输出',
+    'mer_plan': '商品企划拆解货盘 / 价格带 / 波段',
+    'mer_ops': '商品运营分析售罄 / 动销 / 库销比',
+    'sup_buy': '采购询价 / 比价 / 评估供应商',
+    'sup_pmc': '生产协调排期 / 跟单 / 评估翻单',
+    'sup_qc': '品质 QC 判定缺陷 / 整改要求',
+    'sup_wms': '仓储物流核查库存 / 发货 / 退仓',
+    'chl_ch': '渠道运营跟回款 / 处理乱价 / 评估订货',
+    'chl_store': '门店运营分析店效 / 巡店 / 陈列',
+    'chl_ec': '电商运营跟数据 / 排品 / 调直播',
+    'gro_brand': '品牌营销做 IMC / 营销日历',
+    'gro_pr': '公关评估舆情 / 起草口径',
+    'gro_content': '内容社媒写卖点 / 脚本 / 文案',
+    'biz_bi': '数据 BI 拉口径 / 看板 / 分析',
+    'biz_fin': '财务算成本 / 毛利 / 跌价 / 盈亏',
+    'biz_hr': 'HR 处理招聘 / 绩效 / 培训',
+    'biz_voc': '客服 VOC 聚类客诉 / 起草话术',
+    'biz_legal': '法务审合同 / 广告法 / 合规',
+    'biz_it': 'IT 排查接口 / 主数据 / 权限',
 }
 
 
@@ -453,7 +474,7 @@ def update_checklist_item(session_id: str, item_id: str, *, status: str | None =
     return store.update(session_id, updater)
 
 
-def upsert_worker_shard(session_id: str, worker_id: str, *, task_packet: dict | None = None, latest_output: str | None = None, result_summary: str | None = None, validation_feedback: str | None = None, status: str | None = None, increment_retry: bool = False) -> OrcSessionState:
+def upsert_worker_shard(session_id: str, worker_id: str, *, task_packet: dict | None = None, latest_output: str | None = None, result_summary: str | None = None, validation_feedback: str | None = None, status: str | None = None, attempt_number: int | None = None) -> OrcSessionState:
     store = get_session_store()
 
     def updater(state: OrcSessionState) -> OrcSessionState:
@@ -468,21 +489,32 @@ def upsert_worker_shard(session_id: str, worker_id: str, *, task_packet: dict | 
             shard.validation_feedback = validation_feedback
         if status is not None:
             shard.status = status
-        if increment_retry:
-            shard.retry_count += 1
+        if attempt_number is not None:
+            # Idempotent: retry_count is one less than the current attempt
+            # (attempt 1 = no retries yet, attempt 2 = one retry, ...).
+            # Using max() means replays of the same attempt are no-ops.
+            shard.retry_count = max(shard.retry_count, max(0, attempt_number - 1))
+            shard.last_attempt = max(shard.last_attempt, attempt_number)
         state.worker_shards[worker_id] = shard
         return state
 
     return store.update(session_id, updater)
 
 
-def append_artifact(session_id: str, *, owner: str, kind: str, content: str, linked_checklist_item: str = "") -> OrcSessionState:
+def upsert_artifact(session_id: str, *, artifact_id: str, owner: str, kind: str, content: str, linked_checklist_item: str = "") -> OrcSessionState:
     store = get_session_store()
 
     def updater(state: OrcSessionState) -> OrcSessionState:
+        for existing in state.shared_artifacts:
+            if existing.artifact_id == artifact_id:
+                existing.owner = owner
+                existing.kind = kind
+                existing.content = content
+                existing.linked_checklist_item = linked_checklist_item
+                return state
         state.shared_artifacts.append(
             TaskArtifact(
-                artifact_id=str(uuid.uuid4()),
+                artifact_id=artifact_id,
                 owner=owner,
                 kind=kind,
                 content=content,
@@ -492,6 +524,18 @@ def append_artifact(session_id: str, *, owner: str, kind: str, content: str, lin
         return state
 
     return store.update(session_id, updater)
+
+
+def append_artifact(session_id: str, *, owner: str, kind: str, content: str, linked_checklist_item: str = "") -> OrcSessionState:
+    # Compatibility wrapper for call sites that don't yet have a deterministic id.
+    return upsert_artifact(
+        session_id,
+        artifact_id=str(uuid.uuid4()),
+        owner=owner,
+        kind=kind,
+        content=content,
+        linked_checklist_item=linked_checklist_item,
+    )
 
 
 def set_final_summary(session_id: str, summary: str, *, status: str = "completed") -> OrcSessionState:

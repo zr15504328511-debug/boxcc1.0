@@ -1,0 +1,20 @@
+{
+  "id": "crt",
+  "name": "风控评审",
+  "animal": "黑豹",
+  "department": "风控",
+  "color": "黑+红",
+  "accent": "#242936",
+  "secondary": "#d73838",
+  "prop": "红盾牌",
+  "personality": "安静但压迫感强，负责最后一遍挑错和把关。",
+  "fullImage": "assets/agents/crt/full.png",
+  "headshotImage": "assets/agents/crt/headshot.png",
+  "imagegenPrompts": {
+    "full": "Create a polished original animal office mascot in a Duolingo-inspired friendly flat vector character system for Boxcc, a professional fashion retail multi-agent workspace. Do not copy Duolingo characters or trademarks; use friendly geometric character design, expressive eyes, simple rounded bodies, bold silhouettes, humor, and app-icon readability. Character: 黑豹, representing 风控评审. Single symbolic object only: 红盾牌. No extra reports, no extra papers, no clipboards, no folders, no dashboards, no labels, no text. Style: premium flat vector illustration, clean geometric body, professional but funny, transparent-background-ready subject.",
+    "headshot": "Create a simplified vector animal avatar icon from the same mascot identity. Head-only, no hands, no props, no body except a tiny collar color accent if needed. Use 4-6 main color blocks, bold silhouette, clean flat shapes, and app-icon readability at 32px."
+  },
+  "symbol": "红盾牌",
+  "style": "Duolingo-inspired original friendly flat vector mascot, single symbolic object",
+  "sourceSheet": "assets/agents/single-source/crt.png"
+}

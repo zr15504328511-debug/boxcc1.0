@@ -1,0 +1,20 @@
+{
+  "id": "sup_qc",
+  "name": "品质 QC",
+  "animal": "啄木鸟",
+  "department": "供应链中心",
+  "color": "蓝白+红点",
+  "accent": "#2f80c7",
+  "secondary": "#d83a34",
+  "prop": "放大镜",
+  "personality": "眼神尖，专盯别人看不见的线头和风险点。",
+  "fullImage": "assets/agents/sup_qc/full.png",
+  "headshotImage": "assets/agents/sup_qc/headshot.png",
+  "imagegenPrompts": {
+    "full": "Create a polished original animal office mascot in a Duolingo-inspired friendly flat vector character system for Boxcc, a professional fashion retail multi-agent workspace. Do not copy Duolingo characters or trademarks; use friendly geometric character design, expressive eyes, simple rounded bodies, bold silhouettes, humor, and app-icon readability. Character: 啄木鸟, representing 品质 QC. Single symbolic object only: 放大镜. No extra reports, no extra papers, no clipboards, no folders, no dashboards, no labels, no text. Style: premium flat vector illustration, clean geometric body, professional but funny, transparent-background-ready subject.",
+    "headshot": "Create a simplified vector animal avatar icon from the same mascot identity. Head-only, no hands, no props, no body except a tiny collar color accent if needed. Use 4-6 main color blocks, bold silhouette, clean flat shapes, and app-icon readability at 32px."
+  },
+  "symbol": "放大镜",
+  "style": "Duolingo-inspired original friendly flat vector mascot, single symbolic object",
+  "sourceSheet": "assets/agents/single-source/sup_qc.png"
+}
