@@ -124,7 +124,7 @@ npm run dist
 - 聊天框内显示思考过程与执行清单
 - 同一会话内保留主席团状态与 worker shard
 
-详见 [`doc/handoff-stategraph-and-kb.md`](doc/handoff-stategraph-and-kb.md)。
+详见 [`doc/archive/handoff-stategraph-and-kb.md`](doc/archive/handoff-stategraph-and-kb.md)（历史架构交接文档已归档至 `doc/archive/`）。
 
 ## 注意事项
 
