@@ -17,9 +17,7 @@ from models.factory import RuntimeModelConfig, create_chat_model
 from subagents.tools import delegate_to_departments
 from tools import (
     create_docx,
-    create_management_ppt,
     create_markdown,
-    create_product_detail_page,
     create_pptx,
     create_xlsx,
 )
@@ -84,10 +82,13 @@ def make_lead_agent(model_name: str | None = None, runtime_model: dict | Runtime
 
     agent = create_agent(
         model=model,
+        # Template-specialized exports (create_management_ppt /
+        # create_product_detail_page) are owned by the producer layer now —
+        # orc just declares deliverable_type_id and the producer node builds
+        # the file inside the delegate workflow. The generic exports remain as
+        # a fallback for the no-template-match (legacy) path.
         tools=[
             delegate_to_departments,
-            create_management_ppt,
-            create_product_detail_page,
             create_pptx,
             create_docx,
             create_xlsx,
