@@ -30,18 +30,18 @@ from pydantic import BaseModel
 from agents.spec_loader import load_prompt_spec
 from models.factory import create_chat_model
 from tools import (
+    create_docx,
     create_management_ppt,
-    create_markdown,
     create_product_detail_page,
     create_xlsx,
 )
 from tools.specs import (
     DeckSpec,
-    NoteSpec,
+    DocSpec,
     ProductSpec,
     WorkbookSpec,
     deck_to_payload,
-    note_to_payload,
+    doc_to_payload,
     product_to_payload,
     workbook_to_payload,
 )
@@ -64,38 +64,28 @@ _MAX_USER_CHARS = 13000
 class ProducerSpec:
     """Wiring for one deliverable type: schema → payload → export tool."""
     model: type[BaseModel]
-    export_tool: Any              # a LangChain StructuredTool (we call .func)
-    payload_arg: str              # the export tool's JSON/markdown argument name
-    to_payload: Callable[[Any], str]
+    export_tool: Any                      # a LangChain StructuredTool (we call .func)
+    to_payload: Callable[[Any], dict]     # validated model → export tool content kwargs
 
 
-# Keyed by deliverable_type_id (NOT output_tool) so two types can share a
-# generic tool (create_xlsx / create_markdown) with different schemas.
+def _doc(model: type[BaseModel] = DocSpec) -> ProducerSpec:
+    """Shorthand for the shared long-form-document pipeline (→ create_docx)."""
+    return ProducerSpec(model=model, export_tool=create_docx, to_payload=doc_to_payload)
+
+
+# Keyed by deliverable_type_id (NOT output_tool) so several types can share a
+# generic tool (create_docx / create_xlsx) with the same schema.
 PRODUCER_REGISTRY: dict[str, ProducerSpec] = {
-    "management_ppt": ProducerSpec(
-        model=DeckSpec,
-        export_tool=create_management_ppt,
-        payload_arg="deck_json",
-        to_payload=deck_to_payload,
-    ),
-    "product_detail_page": ProducerSpec(
-        model=ProductSpec,
-        export_tool=create_product_detail_page,
-        payload_arg="spec_json",
-        to_payload=product_to_payload,
-    ),
-    "xhs_note": ProducerSpec(
-        model=NoteSpec,
-        export_tool=create_markdown,
-        payload_arg="content",
-        to_payload=note_to_payload,
-    ),
-    "inventory_report": ProducerSpec(
-        model=WorkbookSpec,
-        export_tool=create_xlsx,
-        payload_arg="sheets_json",
-        to_payload=workbook_to_payload,
-    ),
+    # Visual / structured deliverables (own schema + tool)
+    "management_ppt": ProducerSpec(DeckSpec, create_management_ppt, deck_to_payload),
+    "product_detail_page": ProducerSpec(ProductSpec, create_product_detail_page, product_to_payload),
+    "inventory_report": ProducerSpec(WorkbookSpec, create_xlsx, workbook_to_payload),
+    # Group A — strategy / planning documents (shared DocSpec → create_docx)
+    "brand_positioning": _doc(),
+    "user_persona": _doc(),
+    "trend_report": _doc(),
+    "competitor_analysis": _doc(),
+    "merchandising_plan": _doc(),
 }
 
 
@@ -181,11 +171,11 @@ async def produce_deliverable(
         return {"error": f"structured output failed: {last_error}"}
 
     try:
-        payload = spec.to_payload(obj)
+        payload = spec.to_payload(obj)  # dict of content kwargs for the export tool
         filename = f"{deliverable_type_id}-attempt{attempt_number}"
         # Call the raw function so we get back (content, artifact); .invoke()
         # would surface only the content string.
-        _msg, artifact = spec.export_tool.func(**{"filename": filename, spec.payload_arg: payload})
+        _msg, artifact = spec.export_tool.func(filename=filename, **payload)
         return {"artifact": artifact}
     except Exception as exc:
         err = f"export failed: {type(exc).__name__}: {exc}"

@@ -168,8 +168,8 @@ class DeckSpec(BaseModel):
     slides: list[Slide]
 
 
-def deck_to_payload(deck: DeckSpec) -> str:
-    return _dump_json(deck)
+def deck_to_payload(deck: DeckSpec) -> dict:
+    return {"deck_json": _dump_json(deck)}
 
 
 # ===========================================================================
@@ -224,8 +224,8 @@ class ProductSpec(BaseModel):
     compliance_note: Optional[str] = None
 
 
-def product_to_payload(product: ProductSpec) -> str:
-    return _dump_json(product)
+def product_to_payload(product: ProductSpec) -> dict:
+    return {"spec_json": _dump_json(product)}
 
 
 # ===========================================================================
@@ -244,66 +244,39 @@ class WorkbookSpec(BaseModel):
     sheets: list[SheetSpec]
 
 
-def workbook_to_payload(workbook: WorkbookSpec) -> str:
-    return json.dumps(
-        [s.model_dump(exclude_none=True) for s in workbook.sheets],
-        ensure_ascii=False,
-    )
-
-
-# ===========================================================================
-# NoteSpec  →  create_markdown(content=...)  [xhs_note]
-# ===========================================================================
-
-class NoteSpec(BaseModel):
-    title: str
-    hook: str
-    pain_points: list[str]
-    product_intro: str
-    try_on: str
-    outfit_combos: list[str]
-    tips: list[str] = Field(default_factory=list)
-    hashtags: list[str]
-    compliance_note: str
-
-
-def render_note_markdown(note: NoteSpec) -> str:
-    """Deterministically assemble a NoteSpec into the 9-section xhs markdown."""
-    lines: list[str] = [f"# {note.title.strip()}", "", note.hook.strip(), ""]
-
-    if note.pain_points:
-        lines.append("## 你是不是也有这些困扰")
-        lines.extend(f"- {p.strip()}" for p in note.pain_points)
-        lines.append("")
-
-    lines.append("## 产品介绍")
-    lines.append(note.product_intro.strip())
-    lines.append("")
-
-    lines.append("## 真实试穿")
-    lines.append(note.try_on.strip())
-    lines.append("")
-
-    if note.outfit_combos:
-        lines.append("## 搭配场景")
-        lines.extend(f"- {c.strip()}" for c in note.outfit_combos)
-        lines.append("")
-
-    if note.tips:
-        lines.append("## 小贴士 / 避雷")
-        lines.extend(f"- {t.strip()}" for t in note.tips)
-        lines.append("")
-
-    if note.hashtags:
-        tags = " ".join(
-            ("#" + h.strip().lstrip("#")) for h in note.hashtags if h.strip()
+def workbook_to_payload(workbook: WorkbookSpec) -> dict:
+    return {
+        "sheets_json": json.dumps(
+            [s.model_dump(exclude_none=True) for s in workbook.sheets],
+            ensure_ascii=False,
         )
-        lines.append(tags)
-        lines.append("")
-
-    lines.append(f"> {note.compliance_note.strip()}")
-    return "\n".join(lines).strip() + "\n"
+    }
 
 
-def note_to_payload(note: NoteSpec) -> str:
-    return render_note_markdown(note)
+# ===========================================================================
+# DocSpec  →  create_docx(title=..., sections_json=...)
+# ===========================================================================
+# Long-form professional documents (品牌定位 / 用户画像 / 趋势报告 /
+# 竞品分析 / 季度商品企划 / 客服FAQ知识库 / 培训资料 …) all share this one
+# shape: an ordered list of headed sections with paragraph bodies. Express
+# bullet points as paragraphs prefixed with "· "; create_docx renders each
+# paragraph as its own block.
+
+class DocSection(BaseModel):
+    heading: str
+    level: int = 1  # 1–3 (clamped by create_docx)
+    paragraphs: list[str] = Field(default_factory=list)
+
+
+class DocSpec(BaseModel):
+    title: str
+    sections: list[DocSection]
+
+
+def doc_to_payload(doc: DocSpec) -> dict:
+    return {
+        "title": doc.title,
+        "sections_json": json.dumps(
+            [s.model_dump() for s in doc.sections], ensure_ascii=False
+        ),
+    }

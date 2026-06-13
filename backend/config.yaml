@@ -407,83 +407,239 @@ deliverable_types:
       - faq 答复是否给出具体方法或测试依据（不是泛泛的"请联系客服"）
       - compliance_note 是否到位（法务必须过签）
 
-  - id: xhs_note
-    name: 小红书笔记
-    description: 单篇小红书种草笔记，用于新品试穿、场景分享、内容投放初稿。强调真实体验、痛点共鸣和合规披露。
+  - id: brand_positioning
+    name: 品牌定位文档
+    description: 品牌定位与价值主张文档，统一品牌内核、目标客群、差异化与表达边界，供管理层、设计与市场对齐。Word 长文档。
     triggers:
-      - 小红书
-      - xhs
-      - 笔记
-      - 种草
-      - 社媒文案
-      - 小红书选题
-    output_tool: create_markdown
-    default_theme: ""  # 当前小红书笔记暂用 markdown 输出；模板不强制视觉主题
-    voice: 第一人称、真实、克制、避免硬广腔。多用「试穿感」「日常场景」「分享」「踩雷点」这类语感，少用夸张营销词。
-    suggested_workers: [gro_content, biz_voc, biz_legal]
-    required_workers: [gro_content, biz_legal]
+      - 品牌定位
+      - 品牌定位文档
+      - 价值主张
+      - 品牌内核
+      - 品牌策略
+      - positioning
+      - brand positioning
+    output_tool: create_docx
+    voice: 战略、克制、有依据。避免空泛口号，每个定位主张都要能落到客群、场景或证据。
+    suggested_workers: [gro_brand, gro_pr, mer_plan, biz_bi]
+    required_workers: [gro_brand]
     structure:
-      - type: title
+      - type: 品牌概述
         required: true
-        min_count: 1
-        max_count: 1
-        notes: 钩子标题，15-22 字。要像真实用户分享，不写夸张承诺；可用场景、痛点、试穿结果做钩子。
-      - type: hook
+        notes: 一句话定位 + 品牌使命/愿景。开篇即说清"我们是谁、为谁、解决什么"。
+      - type: 目标客群
         required: true
-        min_count: 1
-        max_count: 1
-        notes: 开头 2-3 句抓人开篇。第一人称进入，点出为什么试这件/这类商品，以及用户可能遇到的穿搭困扰。
-      - type: pain_points
+        notes: 核心人群画像（年龄/城市/生活方式/消费能力），要具体可识别，不写"追求品质的人"这类空话。
+      - type: 价值主张与差异化
         required: true
-        min_count: 2
-        max_count: 4
-        repeats: pain_points
-        notes: 痛点 / 试错点 / 选品困扰。每条要具体到身材、场景、季节、预算、面料或洗护，不写泛泛的"很好看"。
-      - type: product_intro
+        notes: 与主要竞品的差异点 3-5 条，每条给出支撑证据（产品/价格/服务/内容），不堆形容词。
+      - type: 品牌个性与调性
         required: true
-        min_count: 3
-        max_count: 5
-        notes: 产品介绍，3-5 句。覆盖面料、版型、价格区间和适用季节；所有卖点都要可验证，不能写绝对化功效。
-      - type: try_on
+        notes: 性格关键词 + 语气边界 + 禁用表达。供文案/客服统一口径。
+      - type: 产品与价格定位
         required: true
-        min_count: 3
-        max_count: 5
-        notes: 真实试穿感受 / 尺码身高数据，3-5 句。必须包含身高体重或身材参考、试穿尺码、松紧/长度/活动量。
-      - type: outfit_combos
+        notes: 主营品类带、价格带与主力价格点；说明与定位的呼应关系。
+      - type: 表达与禁区
         required: true
-        min_count: 2
-        max_count: 4
-        repeats: looks
-        notes: 搭配场景 / 多组 look。每组写清上装/下装/鞋包和适合场景，如通勤、周末、旅行、约会。
-      - type: tips
-        required: false
-        min_count: 2
-        max_count: 4
-        repeats: tips
-        notes: 实用建议 / 洗护 / 避雷。优先写尺码选择、面料护理、颜色搭配、容易踩雷的购买前注意事项。
-      - type: hashtags
-        required: true
-        min_count: 5
-        max_count: 10
-        repeats: hashtags
-        notes: 话题标签，5-10 个。覆盖品类、场景、身材、风格和品牌/系列关键词；避免堆无关热词。
-      - type: compliance_note
-        required: true
-        min_count: 1
-        max_count: 1
-        notes: 合规提示，1-2 句。必须含合作披露（如"本篇含品牌合作/样衣体验"）和避绝对化词说明，法务必审。
+        notes: 可说/不可说清单，合规与绝对化词（最/第一/永远/100%）边界。法务可据此把关。
     worker_contribution_map:
-      gro_content: [title, hook, product_intro, try_on, outfit_combos, tips, hashtags]
-      biz_voc: [pain_points, tips 避雷点, faq 式疑虑素材]
-      biz_legal: [compliance_note, title/hook 合规过审, product_intro 卖点合规过审]
+      gro_brand: [品牌概述, 价值主张与差异化, 品牌个性与调性]
+      mer_plan: [产品与价格定位]
+      biz_bi: [目标客群 数据支撑]
+      gro_pr: [表达与禁区]
     quality_gates:
-      - 是否包含合作披露或样衣体验披露（缺失即返工）
-      - 是否避开绝对化词和无法证明的功效承诺（最、第一、永远、100%、零起球等）
-      - 是否包含真实试穿数据（身高体重/身材参考/尺码/长度或松紧反馈）
-      - pain_points 是否具体到用户困扰、场景或试错点，而不是空泛种草
-      - 是否包含 5-10 个相关 hashtag，且不堆无关热词
-      - product_intro 是否覆盖面料、版型、价格区间并有证据边界
-      - 文风是否像第一人称分享，避免硬广腔和强促销话术
+      - 定位是否差异化、可识别（不是"高品质/高性价比"这类放之四海皆准的空话）
+      - 目标客群是否具体到可识别的人群，而非泛人群
+      - 价值主张每条是否有证据支撑，不靠形容词堆叠
+      - 是否给出品类带与价格带
+      - 是否明确表达禁区与绝对化词/合规边界
+      - 全文是否避免出现绝对化词
+
+  - id: user_persona
+    name: 用户画像
+    description: 目标用户画像文档，定义核心人群的属性、需求、消费行为与触点，供商品、电商与营销共用。Word 长文档。
+    triggers:
+      - 用户画像
+      - 客群画像
+      - 人群画像
+      - 目标用户
+      - 消费者画像
+      - 客户画像
+      - persona
+    output_tool: create_docx
+    voice: 基于数据与事实、标注样本来源；避免刻板印象与无依据的臆断。
+    suggested_workers: [biz_bi, biz_voc, gro_brand, mer_plan]
+    required_workers: [biz_bi]
+    structure:
+      - type: 画像概览
+        required: true
+        notes: 人群命名 + 一句话定义 + 规模/占比。如有多个画像，每个画像各占一节。
+      - type: 人口与生活方式
+        required: true
+        notes: 年龄/城市线级/职业/收入/生活方式与价值观。
+      - type: 需求与痛点
+        required: true
+        notes: 核心需求与未被满足的痛点，要具体到场景，能指向产品或服务动作。
+      - type: 消费行为
+        required: true
+        notes: 客单价、购买频次、品类偏好、决策因素与价格敏感度，需有数据支撑。
+      - type: 触点与渠道
+        required: true
+        notes: 信息获取渠道、购买渠道、内容偏好，指导投放与运营。
+      - type: 数据来源与置信度
+        required: true
+        notes: 样本来源、采集时间、样本量与局限；说明置信度。
+    worker_contribution_map:
+      biz_bi: [画像概览 规模, 消费行为, 数据来源与置信度]
+      biz_voc: [需求与痛点]
+      gro_brand: [人口与生活方式, 触点与渠道]
+    quality_gates:
+      - 是否标注样本来源、采集时间与局限
+      - 是否避免无依据的刻板印象
+      - 消费行为是否有数据支撑（而非凭感觉）
+      - 痛点是否具体、可指向产品/服务动作
+      - 是否给出置信度或样本局限说明
+
+  - id: trend_report
+    name: 市场趋势报告
+    description: 市场与品类趋势报告，归纳风格/品类/价格/渠道趋势，并判断对本品牌的适配性。Word 长文档。
+    triggers:
+      - 趋势报告
+      - 市场趋势
+      - 趋势分析
+      - 流行趋势
+      - 品类趋势
+      - 春夏趋势
+      - 秋冬趋势
+      - trend
+    output_tool: create_docx
+    voice: 来源可靠、区分事实与判断；趋势必须落到对本品牌的适配建议，不停留在罗列。
+    suggested_workers: [gro_brand, mer_plan, biz_bi, chl_ec]
+    required_workers: [mer_plan]
+    structure:
+      - type: 摘要与关键判断
+        required: true
+        notes: 3-5 条核心趋势结论，先给判断再展开。
+      - type: 风格与品类趋势
+        required: true
+        notes: 具体风格、廓形、品类走向；避免"极简风流行"这类无信息量描述。
+      - type: 面料与色彩趋势
+        required: false
+        notes: 当季面料方向与色彩趋势（如适用）。
+      - type: 价格与渠道趋势
+        required: true
+        notes: 价格带变化、渠道/平台动向，给出具体依据。
+      - type: 对本品牌的适配建议
+        required: true
+        notes: 哪些趋势可跟、哪些不跟，落到具体企划/上新动作。
+      - type: 来源与时效
+        required: true
+        notes: 数据/资料来源、采集时间与局限。
+    worker_contribution_map:
+      mer_plan: [风格与品类趋势, 对本品牌的适配建议]
+      gro_brand: [摘要与关键判断]
+      chl_ec: [价格与渠道趋势]
+      biz_bi: [来源与时效]
+    quality_gates:
+      - 趋势是否标注来源与时间
+      - 是否区分客观事实与主观判断
+      - 是否给出对本品牌的适配建议（非空泛罗列）
+      - 价格/渠道趋势是否有具体依据
+      - 是否避免绝对化的趋势预测
+
+  - id: competitor_analysis
+    name: 竞品分析报告
+    description: 竞品对比分析，覆盖定位/价格/产品/渠道/内容，并提炼对本品牌的启示与可执行动作。Word 长文档。
+    triggers:
+      - 竞品分析
+      - 竞品
+      - 竞争对手
+      - 对标
+      - 竞品对比
+      - benchmark
+      - competitor
+    output_tool: create_docx
+    voice: 客观、可追溯；竞品数据标注来源与时效，结论必须落到可执行启示，不主观贬损。
+    suggested_workers: [gro_brand, mer_plan, chl_ec, biz_bi, biz_fin]
+    required_workers: [mer_plan]
+    structure:
+      - type: 分析范围与对象
+        required: true
+        notes: 选取的竞品及理由、对比维度清单（保证各竞品可比）。
+      - type: 定位与人群对比
+        required: true
+        notes: 各竞品定位、目标人群与价格区间差异。
+      - type: 产品与价格对比
+        required: true
+        notes: 品类带、价格带、主推款对比；维度一致、可横向比较。
+      - type: 渠道与内容对比
+        required: false
+        notes: 渠道布局与内容/营销打法对比（如适用）。
+      - type: 启示与建议
+        required: true
+        notes: 对本品牌的差距、机会与可执行动作，避免"加强营销"这类空泛建议。
+      - type: 数据来源与时效
+        required: true
+        notes: 截图/数据来源与采集时间。
+    worker_contribution_map:
+      mer_plan: [产品与价格对比, 启示与建议]
+      gro_brand: [定位与人群对比]
+      chl_ec: [渠道与内容对比]
+      biz_bi: [数据来源与时效]
+      biz_fin: [产品与价格对比 价格口径]
+    quality_gates:
+      - 竞品选择是否给出理由
+      - 价格/产品数据是否标注来源与时效
+      - 是否避免主观贬损竞品、保持客观
+      - 启示与建议是否可执行（非空泛）
+      - 对比维度是否一致、可横向比较
+
+  - id: merchandising_plan
+    name: 季度商品企划
+    description: 季度商品企划文档，规划品类结构、价格带、上新节奏与目标，对齐设计、采购与电商。Word 长文档。
+    triggers:
+      - 商品企划
+      - 季度企划
+      - 商品规划
+      - 上新计划
+      - 货盘规划
+      - 选品计划
+      - 品类规划
+      - merchandising plan
+    output_tool: create_docx
+    voice: 数据先行、目标可量化；企划动作要挂销售/库存/供应链依据，不臆造数字。
+    suggested_workers: [mer_plan, mer_ops, biz_bi, sup_buy, biz_fin]
+    required_workers: [mer_plan]
+    structure:
+      - type: 企划目标
+        required: true
+        notes: 季度销售/上新/毛利目标，量化到数字与口径。
+      - type: 市场与回顾输入
+        required: true
+        notes: 上季复盘要点、趋势与竞品输入，作为企划依据。
+      - type: 品类与价格带规划
+        required: true
+        notes: 各品类 SKU 数、价格带与主推款，挂销售或库存依据。
+      - type: 上新节奏
+        required: true
+        notes: 波段/月份上新计划与关键节点。
+      - type: 供应与风险
+        required: false
+        notes: 供应链能力、交期与风险预案（如适用）。
+      - type: 数据依据
+        required: true
+        notes: 销售/库存/在途数据来源与采集时间。
+    worker_contribution_map:
+      mer_plan: [企划目标, 品类与价格带规划, 上新节奏]
+      mer_ops: [市场与回顾输入]
+      biz_bi: [数据依据]
+      sup_buy: [供应与风险]
+      biz_fin: [企划目标 毛利口径]
+    quality_gates:
+      - 目标是否可量化（有数字与口径）
+      - 品类/价格规划是否有销售或库存依据
+      - 上新节奏是否明确到波段/月份
+      - 是否标注数据来源与采集时间
+      - 是否避免凭空给数
 
   - id: inventory_report
     name: 库存分析报告
