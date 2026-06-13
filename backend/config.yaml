@@ -703,3 +703,599 @@ deliverable_types:
       - 是否避免臆造数字；缺数据时是否明确标注缺口和假设
       - 滞销与断货判断是否有阈值或口径说明（如库龄>90天、可售天数、库销比）
       - SKU 健康度状态标签是否能被后续动作追溯解释
+
+  - id: sales_weekly_report
+    name: 销售周报
+    description: 周度销售经营分析表，汇总销售概览、渠道、品类、款式表现与下周动作。多 sheet Excel。
+    triggers:
+      - 销售周报
+      - 周报
+      - 销售周度
+      - 周销售
+      - 周度销售
+      - weekly sales
+      - sales weekly report
+    output_tool: create_xlsx
+    voice: 数据先行、标注数据快照时间、不臆造；结论必须能追溯到表内数据。
+    suggested_workers: [biz_bi, mer_ops, chl_ec]
+    required_workers: [biz_bi]
+    structure:
+      - type: 销售概览
+        required: true
+        notes: KV 表。列或字段包含周期、数据快照时间、GMV、件数、客单、环比、关键结论。
+      - type: 分渠道销售
+        required: true
+        notes: 列：渠道、GMV、件数、客单、占比、环比、主要变化原因。
+      - type: 分品类销售
+        required: true
+        notes: 列：品类、GMV、件数、售罄率、毛利或折扣、环比、机会点。
+      - type: TOP与滞销款
+        required: true
+        notes: 列：款号、款名、品类、销量、GMV、库存、排名类型、原因初判、动作建议。
+      - type: 异常与下周建议
+        required: true
+        notes: 列：异常项、影响范围、数据依据、原因判断、下周动作、负责人。
+    worker_contribution_map:
+      biz_bi: [销售概览, 分渠道销售, 分品类销售, TOP与滞销款 数据口径, 数据快照时间]
+      mer_ops: [TOP与滞销款 原因初判, 异常与下周建议]
+      chl_ec: [分渠道销售 电商渠道解读, 异常与下周建议 电商动作]
+    quality_gates:
+      - 是否标注统计周期、数据快照时间和数据来源
+      - GMV、件数、客单、环比等核心指标是否口径一致
+      - TOP与滞销判断是否有销量、库存或售罄率依据
+      - 下周建议是否对应具体异常或机会点，不写泛泛建议
+      - 是否避免臆造数字；缺数据时明确标注缺口
+
+  - id: promo_review
+    name: 促销复盘
+    description: 促销或大促活动复盘表，对比目标与实际、渠道效果、商品表现和改进动作。多 sheet Excel。
+    triggers:
+      - 促销复盘
+      - 活动复盘
+      - 大促复盘
+      - 营销复盘
+      - campaign review
+      - promo review
+      - promotion review
+    output_tool: create_xlsx
+    voice: 数据先行、目标对照、结论可执行；费用与毛利口径必须有来源支撑。
+    suggested_workers: [biz_bi, mer_ops, gro_brand, biz_fin]
+    required_workers: [biz_bi, mer_ops]
+    structure:
+      - type: 活动概览
+        required: true
+        notes: KV 表。字段包含活动名称、周期、渠道、机制、目标、数据快照时间、核心结论。
+      - type: 目标vs实际
+        required: true
+        notes: 列：指标、目标值、实际值、达成率、差异、差异原因、口径说明。
+      - type: 分渠道效果
+        required: true
+        notes: 列：渠道、流量、转化率、GMV、件数、客单、费用、ROI、主要问题。
+      - type: 爆款与拖后腿款
+        required: true
+        notes: 列：款号、款名、角色、销量、GMV、库存、折扣、贡献或拖累原因。
+      - type: 复盘结论与改进建议
+        required: true
+        notes: 列：结论、证据数据、影响、下次改进动作、负责人、优先级。
+    worker_contribution_map:
+      biz_bi: [活动概览 数据快照时间, 目标vs实际, 分渠道效果 指标口径]
+      mer_ops: [爆款与拖后腿款, 复盘结论与改进建议 商品动作]
+      gro_brand: [活动概览 机制与传播, 分渠道效果 内容投放解读]
+      biz_fin: [目标vs实际 费用和毛利口径, 分渠道效果 ROI]
+    quality_gates:
+      - 是否明确活动周期、机制、目标和数据快照时间
+      - 目标vs实际是否覆盖达成率和差异原因
+      - 费用、ROI、毛利相关数字是否有 biz_fin 或明确来源支撑
+      - 爆款与拖后腿款是否有销售、库存或折扣数据支撑
+      - 改进建议是否能对应到具体责任方和下一次活动动作
+
+  - id: cost_accounting
+    name: 成本核算
+    description: 单款或系列成本核算表，拆解物料、加工、其他费用、毛利与价格敏感性。多 sheet Excel。
+    triggers:
+      - 成本核算
+      - 成本测算
+      - 单款成本
+      - 毛利测算
+      - costing
+      - cost accounting
+      - margin calculation
+    output_tool: create_xlsx
+    voice: 金额口径由 biz_fin 支撑、不臆造；成本假设、币种、税费和时间点必须写清。
+    suggested_workers: [biz_fin, sup_buy, mer_plan]
+    required_workers: [biz_fin]
+    structure:
+      - type: 单款成本构成
+        required: true
+        notes: 列：款号、款名、版本、成本项、金额、占比、币种、含税口径、来源。
+      - type: 物料成本明细
+        required: true
+        notes: 列：物料编码、物料名称、规格、供应商、用量、单价、损耗率、金额。
+      - type: 加工与其他费用
+        required: true
+        notes: 列：费用项、计价方式、单价、数量或工时、金额、供应商或承担方、备注。
+      - type: 毛利测算
+        required: true
+        notes: 列：售价、成本、平台费或渠道扣点、税费、毛利额、毛利率、口径说明。
+      - type: 价格敏感性
+        required: false
+        notes: 列：售价情景、成本情景、销量假设、毛利率、利润影响、风险提示。
+    worker_contribution_map:
+      biz_fin: [单款成本构成, 毛利测算, 价格敏感性, 金额口径]
+      sup_buy: [物料成本明细, 加工与其他费用 供应商报价]
+      mer_plan: [单款成本构成 款式信息, 价格敏感性 售价情景]
+    quality_gates:
+      - 所有金额是否标注币种、含税口径、时间点和来源
+      - 物料单价与用量是否能追溯到报价、BOM 或采购输入
+      - 毛利测算是否列明渠道扣点、税费或其他必要假设
+      - 是否避免臆造成本；缺供应商报价时明确标注待确认
+      - 价格敏感性是否清楚区分真实数据与情景假设
+
+  - id: service_faq_kb
+    name: 客服FAQ知识库
+    description: 客服常见问题知识库，沉淀尺码、面料、物流、退换货与质量问题的标准答复。Word 长文档。
+    triggers:
+      - 客服FAQ
+      - FAQ
+      - 客服知识库
+      - 常见问题
+      - 客服话术库
+      - service FAQ
+      - support knowledge base
+    output_tool: create_docx
+    voice: 清晰、可执行、以政策和质检依据为准；每条答复给具体方法或依据，不写"请联系客服"。
+    suggested_workers: [biz_voc, biz_legal, sup_qc]
+    required_workers: [biz_voc]
+    structure:
+      - type: 尺码与版型
+        required: true
+        notes: 汇总尺码选择、版型偏差、测量方法和换码建议；答复要能对应尺码表或试穿反馈。
+      - type: 面料与洗护
+        required: true
+        notes: 覆盖成分、手感、厚薄、洗涤、晾晒、熨烫等问题；给出吊牌或洗唛依据。
+      - type: 物流与发货
+        required: true
+        notes: 说明发货时效、拆单、物流更新延迟、异常件处理路径和可承诺边界。
+      - type: 退换货政策
+        required: true
+        notes: 写清退换货条件、周期、运费、影响二次销售的判断和凭证要求。
+      - type: 质量(起球缩水掉色)
+        required: true
+        notes: 分别说明起球、缩水、掉色等场景的判断方法、处理步骤和质检依据。
+      - type: 其他常见问题
+        required: false
+        notes: 收录包装、发票、会员、赠品、活动价等高频问题，保持与现行政策一致。
+    worker_contribution_map:
+      biz_voc: [尺码与版型, 物流与发货, 退换货政策, 其他常见问题, 高频问题来源]
+      biz_legal: [退换货政策, 物流与发货 承诺边界, 其他常见问题 合规审阅]
+      sup_qc: [面料与洗护, 质量(起球缩水掉色)]
+    quality_gates:
+      - 每条答复是否给出具体处理方法、判断标准或政策依据
+      - 是否避免使用"请联系客服"作为主要答复
+      - 退换货、补偿和承诺边界是否经过 biz_legal 审阅
+      - 质量类问题是否有 sup_qc 的检测或质检依据
+      - 是否避免绝对化词和超出政策的承诺
+
+  - id: complaint_scripts
+    name: 投诉处理话术
+    description: 客诉处理标准话术文档，覆盖安抚、分场景处理、升级补偿与合规红线。Word 长文档。
+    triggers:
+      - 投诉处理
+      - 客诉话术
+      - 投诉话术
+      - 客诉处理
+      - complaint
+      - complaint scripts
+      - service recovery
+    output_tool: create_docx
+    voice: 同理、克制、可执行；不越权承诺补偿，不使用刺激性或定责过早的表达。
+    suggested_workers: [biz_voc, biz_legal]
+    required_workers: [biz_voc, biz_legal]
+    structure:
+      - type: 处理原则
+        required: true
+        notes: 明确先安抚、再核实、给路径、留记录的处理顺序，以及不同严重度的响应时限。
+      - type: 通用安抚话术
+        required: true
+        notes: 提供可直接使用的开场、致歉、确认信息、解释进展和收尾话术。
+      - type: 分场景话术(质量/物流/尺码/服务)
+        required: true
+        notes: 按质量、物流、尺码、服务体验拆分，每类包含核实问题、答复口径和下一步动作。
+      - type: 升级与补偿权限
+        required: true
+        notes: 写清升级条件、审批角色、可用补偿类型、金额或权益边界和记录要求。
+      - type: 红线与合规(不可承诺事项)
+        required: true
+        notes: 列出不可承认责任、不可承诺时效、不可私下补偿、不可使用的敏感表达。
+    worker_contribution_map:
+      biz_voc: [处理原则, 通用安抚话术, 分场景话术(质量/物流/尺码/服务), 升级与补偿权限]
+      biz_legal: [升级与补偿权限, 红线与合规(不可承诺事项), 分场景话术(质量/物流/尺码/服务) 合规边界]
+    quality_gates:
+      - 是否覆盖质量、物流、尺码、服务四类核心投诉场景
+      - 话术是否包含核实信息和下一步动作，不只表达安抚
+      - 补偿权限是否写清审批条件和边界
+      - 不可承诺事项是否明确，且经 biz_legal 审阅
+      - 是否避免激化矛盾、提前定责或绝对化承诺
+
+  - id: vm_guideline
+    name: VM陈列指引
+    description: 门店视觉陈列执行文档，统一陈列主题、重点位、动线、搭配和维护检查标准。Word 长文档。
+    triggers:
+      - VM陈列
+      - 陈列指引
+      - 陈列指导
+      - visual merchandising
+      - 橱窗陈列
+      - VM guideline
+      - display guideline
+    output_tool: create_docx
+    voice: 可落地、图文执行友好；所有指引要能被门店按区域、道具和检查项执行。
+    suggested_workers: [chl_store, gro_brand, mer_plan]
+    required_workers: [chl_store]
+    structure:
+      - type: 陈列主题与故事线
+        required: true
+        notes: 写清本期主题、主推系列、色彩逻辑、客群场景和门店需要传达的一句话。
+      - type: 橱窗与重点位
+        required: true
+        notes: 说明橱窗、入口、流水台、主通道等位置的主推款、数量和摆放优先级。
+      - type: 分区与动线
+        required: true
+        notes: 给出女装、男装、配饰或品类区的布局逻辑，以及顾客动线和连带路径。
+      - type: 模特与搭配
+        required: true
+        notes: 列出模特套装、层次搭配、尺码选择、配饰和替换方案。
+      - type: 道具与价签规范
+        required: true
+        notes: 说明衣架、展台、POP、价签、尺码牌、灯光等使用规范和禁用做法。
+      - type: 维护与检查清单
+        required: true
+        notes: 给门店每日检查项，包括整洁度、尺码补齐、价签一致、主推位更新和照片回传。
+    worker_contribution_map:
+      chl_store: [橱窗与重点位, 分区与动线, 道具与价签规范, 维护与检查清单]
+      gro_brand: [陈列主题与故事线, 道具与价签规范 品牌表达]
+      mer_plan: [橱窗与重点位 主推款, 模特与搭配]
+    quality_gates:
+      - 是否明确本期主题、主推系列和重点陈列位置
+      - 每个陈列区域是否给出可执行的款式、数量或摆放要求
+      - 模特搭配是否能对应现有商品和替换方案
+      - 维护清单是否可被门店每日检查和回传
+      - 是否避免只写审美描述而缺少执行标准
+
+  - id: new_product_training
+    name: 新品培训资料
+    description: 新品上市培训文档，帮助导购和运营理解系列、单品卖点、面料工艺、搭配与问答。Word 长文档。
+    triggers:
+      - 新品培训
+      - 导购培训
+      - 上新培训
+      - 产品培训
+      - 培训资料
+      - new product training
+      - product training
+    output_tool: create_docx
+    voice: 面向一线、卖点可验证；避免绝对化词，所有卖点必须能被面料、工艺、版型或用户反馈支撑。
+    suggested_workers: [mer_plan, gro_content, sup_qc, biz_voc]
+    required_workers: [mer_plan]
+    structure:
+      - type: 系列概述
+        required: true
+        notes: 说明系列主题、上新时间、目标场景、核心客群和主推理由。
+      - type: 单品卖点
+        required: true
+        notes: 按款号列出每个单品的 3-5 个卖点，并标注对应证据或使用场景。
+      - type: 面料与工艺
+        required: true
+        notes: 说明成分、手感、克重、工艺、洗护注意和质检证据。
+      - type: 搭配与场景
+        required: true
+        notes: 给出可直接用于导购的穿搭组合、适用场景、连带品类和替换方案。
+      - type: 价格与目标客群
+        required: true
+        notes: 写清价格带、目标客群、购买动机、适合推荐的人群和不适合夸大的边界。
+      - type: 常见问答(导购视角)
+        required: true
+        notes: 收录顾客高频疑问和标准答法，覆盖尺码、面料、洗护、价格和搭配。
+    worker_contribution_map:
+      mer_plan: [系列概述, 单品卖点, 价格与目标客群]
+      gro_content: [搭配与场景, 常见问答(导购视角) 表达]
+      sup_qc: [面料与工艺, 常见问答(导购视角) 质量依据]
+      biz_voc: [常见问答(导购视角), 单品卖点 顾客关注点]
+    quality_gates:
+      - 每个核心卖点是否有面料、工艺、版型、数据或反馈依据
+      - 是否覆盖导购需要的推荐场景、连带搭配和异议回答
+      - 面料与工艺信息是否与吊牌、检测或质检输入一致
+      - 是否避免绝对化词和无法证明的功效表达
+      - 问答是否站在导购视角，能直接用于门店沟通
+
+  - id: sales_pitch
+    name: 导购话术
+    description: 门店导购销售话术文档，覆盖接待、需求挖掘、卖点呈现、异议处理和加购收尾。Word 长文档。
+    triggers:
+      - 导购话术
+      - 销售话术
+      - 门店话术
+      - 卖货话术
+      - 接待话术
+      - sales pitch
+      - selling script
+    output_tool: create_docx
+    voice: 自然、克制、顾客导向；话术要可直接开口说，避免压迫式销售和夸大承诺。
+    suggested_workers: [chl_store, gro_content, biz_voc]
+    required_workers: [chl_store]
+    structure:
+      - type: 开场与接近
+        required: true
+        notes: 提供不同客流场景的欢迎、观察、非打扰式接近和建立信任的话术。
+      - type: 需求挖掘
+        required: true
+        notes: 给出尺码、场景、预算、风格、已有搭配的提问方式和记录要点。
+      - type: 卖点呈现
+        required: true
+        notes: 按商品或场景组织卖点表达，每条卖点要有可验证依据或试穿观察。
+      - type: 异议处理
+        required: true
+        notes: 覆盖价格、尺码、显瘦、面料、洗护、犹豫不决等异议，给出回应和下一步动作。
+      - type: 连带与加购
+        required: true
+        notes: 给出成套搭配、配饰、换季、护理品或多件组合的自然推荐话术。
+      - type: 临门一脚与售后提醒
+        required: true
+        notes: 包含成交确认、会员权益、洗护提醒、退换货边界和离店后维护。
+    worker_contribution_map:
+      chl_store: [开场与接近, 需求挖掘, 异议处理, 连带与加购, 临门一脚与售后提醒]
+      gro_content: [卖点呈现, 连带与加购 表达]
+      biz_voc: [异议处理, 临门一脚与售后提醒 高频问题]
+    quality_gates:
+      - 话术是否覆盖完整销售链路，而非只写卖点
+      - 每条卖点是否有可验证依据，避免夸大功效
+      - 异议处理是否包含回应、证据和下一步动作
+      - 售后提醒是否符合现行退换货与洗护政策
+      - 是否避免压迫式成交、绝对化承诺和不合规表达
+
+  - id: bom_sheet
+    name: BOM物料清单
+    description: 单款 BOM 物料清单表，拆分主料、辅料、包装、用量损耗和成本汇总。多 sheet Excel。
+    triggers:
+      - BOM
+      - 物料清单
+      - 用料清单
+      - bill of materials
+      - BOM表
+      - material list
+      - bom sheet
+    output_tool: create_xlsx
+    voice: 明细完整、口径清楚；物料、用量、损耗和成本必须有采购或版单依据。
+    suggested_workers: [sup_buy, sup_pmc, mer_plan]
+    required_workers: [sup_buy]
+    structure:
+      - type: 主料
+        required: true
+        notes: 列：物料编码、名称、规格、颜色、供应商、单位、单耗、损耗率、单价、金额。
+      - type: 辅料
+        required: true
+        notes: 列：物料编码、名称、规格、颜色、部位、单位、单耗、损耗率、单价、金额。
+      - type: 包装
+        required: true
+        notes: 列：包装物料、规格、使用位置、单位用量、损耗率、单价、金额、环保或合规要求。
+      - type: 用量与损耗
+        required: true
+        notes: 列：物料、基准尺码、用量来源、损耗率依据、放码规则、备注。
+      - type: 成本汇总
+        required: true
+        notes: 列：类别、金额、占比、含税口径、币种、报价日期、待确认项。
+    worker_contribution_map:
+      sup_buy: [主料, 辅料, 包装, 成本汇总 供应商报价]
+      sup_pmc: [用量与损耗, 主料 用量校验, 辅料 用量校验]
+      mer_plan: [主料 款式信息, 辅料 款式信息, 包装 品牌要求]
+    quality_gates:
+      - 主料、辅料、包装是否分别成 sheet 且字段完整
+      - 用量、损耗率和放码规则是否标注来源或依据
+      - 单价和金额是否标注供应商、报价日期、币种和含税口径
+      - 成本汇总是否能追溯到各物料明细
+      - 是否避免用空泛估算替代待确认报价
+
+  - id: size_spec
+    name: 尺寸表
+    description: 服装尺寸规格表，记录各尺码各部位数值、测量方法和允差标准。多 sheet Excel。
+    triggers:
+      - 尺寸表
+      - 尺码表
+      - 规格表
+      - size chart
+      - 尺寸规格
+      - size spec
+      - measurement spec
+    output_tool: create_xlsx
+    voice: 数值需有依据、标注单位；测量部位、方法和允差必须可执行。
+    suggested_workers: [sup_pmc, sup_qc, mer_plan]
+    required_workers: [sup_pmc]
+    structure:
+      - type: 尺码规格(各码各部位)
+        required: true
+        notes: 列：尺码、部位、规格值、单位、基准码、档差、样衣版本、数据来源。
+      - type: 测量方法
+        required: true
+        notes: 列：部位、测量位置、测量方式、平铺或拉伸要求、示意说明、注意事项。
+      - type: 允差
+        required: true
+        notes: 列：部位、允差范围、单位、适用尺码、判定规则、复测要求。
+    worker_contribution_map:
+      sup_pmc: [尺码规格(各码各部位), 测量方法, 允差]
+      sup_qc: [测量方法 质检口径, 允差 判定规则]
+      mer_plan: [尺码规格(各码各部位) 目标版型, 测量方法 消费者表达]
+    quality_gates:
+      - 所有规格数值是否标注单位和数据来源
+      - 尺码规格是否覆盖各码各关键部位，不缺核心部位
+      - 测量方法是否能被工厂和 QC 按同一口径执行
+      - 允差是否明确到部位、范围、单位和判定规则
+      - 缺少样衣或版单依据时是否明确标注待确认
+
+  - id: craft_instruction
+    name: 工艺说明
+    description: 生产工艺说明文档，明确关键工序、车缝、后整理、质量要点与注意事项。Word 长文档。
+    triggers:
+      - 工艺说明
+      - 工艺单
+      - 做工说明
+      - 工艺要求
+      - craft
+      - craft instruction
+      - workmanship spec
+    output_tool: create_docx
+    voice: 工厂可执行、QC可检查；关键工序必须写清标准、位置、风险和判定方式。
+    suggested_workers: [sup_pmc, sup_qc]
+    required_workers: [sup_pmc]
+    structure:
+      - type: 工艺概述
+        required: true
+        notes: 说明款式、版本、适用工厂、关键工艺列表和与普通款的差异。
+      - type: 关键工序
+        required: true
+        notes: 按生产顺序列出关键步骤、操作要求、设备或工具、前后置条件。
+      - type: 车缝要求
+        required: true
+        notes: 写清针距、线迹、缝份、压线、加固、对格对条或特殊部位要求。
+      - type: 后整理
+        required: true
+        notes: 覆盖整烫、洗水、定型、剪线、包装前整理和外观标准。
+      - type: 质量要点
+        required: true
+        notes: 列出 QC 必检点、常见缺陷、判定标准和返修方式。
+      - type: 注意事项
+        required: false
+        notes: 写明易错风险、特殊物料处理、颜色批差、缩水控制和安全提醒。
+    worker_contribution_map:
+      sup_pmc: [工艺概述, 关键工序, 车缝要求, 后整理, 注意事项]
+      sup_qc: [质量要点, 车缝要求 判定标准, 后整理 外观标准]
+    quality_gates:
+      - 是否按生产顺序说明关键工序和前后置条件
+      - 车缝要求是否包含针距、线迹、缝份或加固等可检查标准
+      - 后整理是否覆盖整烫、剪线、包装前检查等必要动作
+      - 质量要点是否能转化为 QC 检查项和返修判断
+      - 是否避免只写原则而缺少部位、数值或判定方式
+
+  - id: care_label
+    name: 洗唛内容
+    description: 洗唛与洗护标签文档，整理成分、洗涤说明、符号、标准、产地和厂商信息。Word 长文档。
+    triggers:
+      - 洗唛
+      - 水洗标
+      - 洗涤标
+      - care label
+      - 洗护标签
+      - care instructions
+      - washing label
+    output_tool: create_docx
+    voice: 必须合规、以国标和吊牌为准、法务必审；不确定信息必须标注待确认。
+    suggested_workers: [sup_qc, biz_legal]
+    required_workers: [sup_qc, biz_legal]
+    structure:
+      - type: 成分标注
+        required: true
+        notes: 按面料、里料、填充物等写清纤维名称、含量比例、标注顺序和依据。
+      - type: 洗涤说明
+        required: true
+        notes: 写清水洗、漂白、翻转、干燥、熨烫、干洗等文字说明和限制条件。
+      - type: 符号与图示说明
+        required: true
+        notes: 列出需要使用的洗护符号、含义、顺序和与文字说明的一致性。
+      - type: 安全类别与执行标准
+        required: true
+        notes: 标注安全类别、执行标准、质量等级和适用国标或平台要求。
+      - type: 产地与厂商信息
+        required: true
+        notes: 写清产地、生产者或经销者名称、地址、联系方式和必要备案信息。
+    worker_contribution_map:
+      sup_qc: [成分标注, 洗涤说明, 符号与图示说明, 安全类别与执行标准]
+      biz_legal: [安全类别与执行标准, 产地与厂商信息, 全文合规审阅]
+    quality_gates:
+      - 成分、比例、安全类别和执行标准是否有吊牌、检测或国标依据
+      - 洗涤文字说明是否与符号一致，不能互相矛盾
+      - 产地与厂商信息是否完整且符合法规要求
+      - 是否经过 biz_legal 审阅，不确定项是否标注待确认
+      - 是否避免使用未确认的国标、认证或功效表述
+
+  - id: production_tracking
+    name: 生产跟单表
+    description: 生产跟单进度表，跟踪订单、物料、生产、质检、出货与风险状态。多 sheet Excel。
+    triggers:
+      - 生产跟单
+      - 跟单表
+      - 生产进度
+      - 跟单
+      - production tracking
+      - order tracking
+      - production follow-up
+    output_tool: create_xlsx
+    voice: 节点清晰、责任到人、风险前置；所有日期和状态必须有来源或更新时间。
+    suggested_workers: [sup_pmc, sup_buy, sup_qc, sup_wms]
+    required_workers: [sup_pmc]
+    structure:
+      - type: 订单概览
+        required: true
+        notes: 列：订单号、款号、数量、工厂、下单日期、交期、当前状态、负责人、更新时间。
+      - type: 物料到位
+        required: true
+        notes: 列：物料、供应商、计划到料日、实际到料日、缺口数量、影响订单、跟进动作。
+      - type: 生产进度
+        required: true
+        notes: 列：工序、计划开始、计划完成、实际进度、完成率、异常、责任人、更新时间。
+      - type: 质检节点
+        required: true
+        notes: 列：检验阶段、计划日期、实际日期、检验结果、问题点、整改要求、复检日期。
+      - type: 出货与风险
+        required: true
+        notes: 列：出货批次、计划出货、实际出货、物流方式、延误风险、影响、预案、负责人。
+    worker_contribution_map:
+      sup_pmc: [订单概览, 生产进度, 出货与风险 总协调]
+      sup_buy: [物料到位, 出货与风险 物料风险]
+      sup_qc: [质检节点, 出货与风险 质量风险]
+      sup_wms: [出货与风险, 订单概览 入库或发运状态]
+    quality_gates:
+      - 订单、物料、生产、质检、出货五类 sheet 是否齐备
+      - 每个关键节点是否包含计划日期、实际状态、负责人和更新时间
+      - 物料缺口是否能追溯到供应商、数量和影响订单
+      - 风险项是否包含影响、预案和责任人，而非只描述问题
+      - 是否避免凭空填写日期；未知节点标注待确认
+
+  - id: qc_aql
+    name: 质检标准与AQL检验表
+    description: 质检标准和 AQL 检验记录表，覆盖标准、抽样方案、缺陷分级、记录和整改判定。多 sheet Excel。
+    triggers:
+      - 质检标准
+      - AQL
+      - 检验表
+      - 质量检验
+      - 品控标准
+      - quality inspection
+      - AQL inspection
+    output_tool: create_xlsx
+    voice: 标准明确、记录可追溯；抽样、缺陷分级和判定必须按 QC 口径执行。
+    suggested_workers: [sup_qc, sup_pmc]
+    required_workers: [sup_qc]
+    structure:
+      - type: 检验标准
+        required: true
+        notes: 列：检验项目、标准要求、检验方法、工具、适用部位、判定规则。
+      - type: AQL抽样方案
+        required: true
+        notes: 列：批量、检验水平、AQL值、抽样数、Ac、Re、适用场景、依据。
+      - type: 缺陷分级
+        required: true
+        notes: 列：缺陷类型、严重等级、定义、示例、判定方式、整改要求。
+      - type: 检验记录
+        required: true
+        notes: 列：批次、款号、抽样数、检验项目、不良数量、缺陷描述、照片编号、检验员、日期。
+      - type: 判定与整改
+        required: true
+        notes: 列：批次、判定结果、主要缺陷、整改要求、责任方、复检日期、关闭状态。
+    worker_contribution_map:
+      sup_qc: [检验标准, AQL抽样方案, 缺陷分级, 检验记录, 判定与整改]
+      sup_pmc: [判定与整改 生产协调, AQL抽样方案 批量信息]
+    quality_gates:
+      - AQL抽样方案是否包含批量、检验水平、AQL值、抽样数、Ac 和 Re
+      - 缺陷分级是否区分严重、主要、次要缺陷并给出示例
+      - 检验记录是否能追溯到批次、款号、检验员和日期
+      - 判定与整改是否包含责任方、复检日期和关闭状态
+      - 是否避免用笼统合格标准替代可检查的判定规则

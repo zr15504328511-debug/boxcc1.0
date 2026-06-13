@@ -86,6 +86,23 @@ PRODUCER_REGISTRY: dict[str, ProducerSpec] = {
     "trend_report": _doc(),
     "competitor_analysis": _doc(),
     "merchandising_plan": _doc(),
+    # Group B — operations analytics (WorkbookSpec → create_xlsx)
+    "sales_weekly_report": ProducerSpec(WorkbookSpec, create_xlsx, workbook_to_payload),
+    "promo_review": ProducerSpec(WorkbookSpec, create_xlsx, workbook_to_payload),
+    "cost_accounting": ProducerSpec(WorkbookSpec, create_xlsx, workbook_to_payload),
+    # Group C — customer / store enablement (DocSpec → create_docx)
+    "service_faq_kb": _doc(),
+    "complaint_scripts": _doc(),
+    "vm_guideline": _doc(),
+    "new_product_training": _doc(),
+    "sales_pitch": _doc(),
+    # Group D — production / technical docs
+    "bom_sheet": ProducerSpec(WorkbookSpec, create_xlsx, workbook_to_payload),
+    "size_spec": ProducerSpec(WorkbookSpec, create_xlsx, workbook_to_payload),
+    "craft_instruction": _doc(),
+    "care_label": _doc(),
+    "production_tracking": ProducerSpec(WorkbookSpec, create_xlsx, workbook_to_payload),
+    "qc_aql": ProducerSpec(WorkbookSpec, create_xlsx, workbook_to_payload),
 }
 
 
