@@ -23,6 +23,8 @@ graph:
                                        │                                        │
                                        │←───────────────────────────────────────┘
                                        ↓
+                                   [run_producer]   # assemble deliverable file
+                                       ↓            # (no-op if no deliverable_type)
                                    [finalize]
                                        ↓
                                       END
@@ -101,6 +103,10 @@ class WorkflowState(TypedDict, total=False):
     rework_pairs: list[tuple[str, str]]
     rework_results: Annotated[list[Any], operator.add]
     rework_output_parts: Annotated[list[str], operator.add]
+
+    # Producer (deliverable assembly, before finalize)
+    deliverable_artifact: dict[str, Any]
+    deliverable_error: str
 
     # Final
     content: str
@@ -280,6 +286,24 @@ def _build_critic_task(
     return task
 
 
+def _merged_worker_summary(state: WorkflowState) -> str:
+    """Worker output joined for downstream consumers (critic recheck, producer,
+    finalize). When a rework round ran, the reworked owners' original sections
+    are dropped and replaced by their reworked versions.
+    """
+    rework_pairs = state.get("rework_pairs", [])
+    if rework_pairs:
+        rework_owner_names = {
+            state["worker_map"][o].name for o, _ in rework_pairs if o in state["worker_map"]
+        }
+        original = state.get("worker_output_parts", [])
+        kept = [s for s in original if not any(s.startswith(f"## {name}") for name in rework_owner_names)]
+        merged = kept + state.get("rework_output_parts", [])
+    else:
+        merged = state.get("worker_output_parts", [])
+    return "\n\n---\n\n".join(merged) if merged else "(No agent output)"
+
+
 # ---------------------------------------------------------------------------
 # Nodes
 # ---------------------------------------------------------------------------
@@ -424,15 +448,15 @@ async def run_critic(state: WorkflowState) -> dict:
 
 
 def decide_rework(state: WorkflowState) -> str:
-    """Conditional edge: rework or finalize?"""
+    """Conditional edge: rework, or proceed to producer (then finalize)?"""
     report = state.get("validation_report")
     if report is None:
-        return "finalize"
+        return "run_producer"
     if report.pass_gate != "fixes_required" or not report.rework_targets:
-        return "finalize"
+        return "run_producer"
     pairs = [(f.owner, f.summary) for f in report.rework_targets if f.owner in state["tasks"]]
     if not pairs:
-        return "finalize"
+        return "run_producer"
     return "dispatch_rework"
 
 
@@ -522,11 +546,7 @@ async def run_critic_recheck(state: WorkflowState) -> dict:
     attempt_number = state.get("attempt_number", 1)
     rework_pairs = state.get("rework_pairs", [])
     # Use the merged output (originals minus replaced + reworked)
-    rework_owner_names = {state["worker_map"][o].name for o, _ in rework_pairs if o in state["worker_map"]}
-    original = state.get("worker_output_parts", [])
-    kept = [s for s in original if not any(s.startswith(f"## {name}") for name in rework_owner_names)]
-    merged_sections = kept + state.get("rework_output_parts", [])
-    worker_summary = "\n\n---\n\n".join(merged_sections) if merged_sections else "(No agent output)"
+    worker_summary = _merged_worker_summary(state)
 
     await emit_run_step(
         step_id="critic_review_phase_2",
@@ -595,6 +615,78 @@ async def run_critic_recheck(state: WorkflowState) -> dict:
     }
 
 
+async def run_producer(state: WorkflowState) -> dict:
+    """Assemble worker outputs into the deliverable file (before finalize).
+
+    Only fires when orc declared a `deliverable_type_id` that has a registered
+    producer; otherwise it's a pass-through and orc/legacy handles export.
+    """
+    dtid = state.get("deliverable_type_id") or ""
+    from subagents.producer import PRODUCER_REGISTRY, produce_deliverable
+
+    if dtid not in PRODUCER_REGISTRY:
+        return {}
+
+    session_id = current_session_id()
+    turn_id = state.get("turn_id", "")
+    attempt_number = state.get("attempt_number", 1)
+    worker_summary = _merged_worker_summary(state)
+
+    await emit_run_step(
+        step_id="producer_build",
+        phase="final",
+        agent_id="producer",
+        status="running",
+        title="产物组装中",
+        summary=f"按 {dtid} 模板把部门产出组装成可交付产物。",
+        meta={"deliverable_type_id": dtid},
+    )
+
+    outcome = await produce_deliverable(
+        deliverable_type_id=dtid,
+        worker_summary=worker_summary,
+        user_question=state["user_question"],
+        attempt_number=attempt_number,
+    )
+    artifact = outcome.get("artifact")
+    err = outcome.get("error")
+
+    if artifact:
+        await emit_run_step(
+            step_id="producer_build",
+            phase="final",
+            agent_id="producer",
+            status="completed",
+            title="产物已生成",
+            summary=_clean_inline(
+                f"{artifact.get('filename', '')} ({artifact.get('size_bytes', '?')} bytes)", limit=110
+            ),
+            meta={"deliverable_type_id": dtid, "path": artifact.get("path")},
+        )
+        if session_id:
+            st = upsert_artifact(
+                session_id,
+                artifact_id=f"{turn_id}:producer:{dtid}:{attempt_number}",
+                owner="producer",
+                kind="deliverable",
+                content=str(artifact.get("path", "")),
+                linked_checklist_item="orc_final",
+            )
+            await emit_checklist_sync(st)
+        return {"deliverable_artifact": artifact}
+
+    await emit_run_step(
+        step_id="producer_build",
+        phase="final",
+        agent_id="producer",
+        status="failed",
+        title="产物生成失败",
+        summary=_clean_inline(err or "unknown", limit=110),
+        meta={"deliverable_type_id": dtid},
+    )
+    return {"deliverable_error": err or "producer failed"}
+
+
 async def finalize(state: WorkflowState) -> dict:
     """Assemble final `content` string and `artifact` dict."""
     session_id = current_session_id()
@@ -602,15 +694,7 @@ async def finalize(state: WorkflowState) -> dict:
     report = state.get("validation_report")
 
     # Recompute the post-rework merged summary if applicable
-    rework_pairs = state.get("rework_pairs", [])
-    if rework_pairs:
-        rework_owner_names = {state["worker_map"][o].name for o, _ in rework_pairs if o in state["worker_map"]}
-        original = state.get("worker_output_parts", [])
-        kept = [s for s in original if not any(s.startswith(f"## {name}") for name in rework_owner_names)]
-        merged = kept + state.get("rework_output_parts", [])
-    else:
-        merged = state.get("worker_output_parts", [])
-    worker_summary = "\n\n---\n\n".join(merged) if merged else "(No agent output)"
+    worker_summary = _merged_worker_summary(state)
 
     if critic_result is not None:
         critic_header = f"## {critic_result.name} - Validation Review"
@@ -622,6 +706,18 @@ async def finalize(state: WorkflowState) -> dict:
         content = f"{worker_summary}\n\n{'=' * 40}\n\n{critic_section}"
     else:
         content = worker_summary
+
+    # Producer outcome — surface the generated file path (or the failure) so
+    # orc can reference it without calling any export tool itself.
+    deliverable_artifact = state.get("deliverable_artifact")
+    deliverable_error = state.get("deliverable_error")
+    if deliverable_artifact:
+        content += (
+            f"\n\n## 产物\n已生成：{deliverable_artifact.get('path')}"
+            f"（{deliverable_artifact.get('filename')}，{deliverable_artifact.get('size_bytes')} bytes）"
+        )
+    elif deliverable_error:
+        content += f"\n\n## 产物\n自动产物生成失败（{deliverable_error}），以上为文字版。"
 
     if session_id:
         st = update_checklist_item(
@@ -652,6 +748,7 @@ async def finalize(state: WorkflowState) -> dict:
         "validation_report": report.model_dump() if report else None,
         "selected_workers": state["selected_ids"],
         "department_results": state.get("department_results", []),
+        "deliverable_artifact": deliverable_artifact,
     }
     return {"content": content, "artifact": artifact}
 
@@ -679,6 +776,7 @@ def build_delegate_graph(*, checkpointer: Any = None):
     g.add_node("run_rework_worker", run_rework_worker)
     g.add_node("aggregate_rework", aggregate_rework)
     g.add_node("run_critic_recheck", run_critic_recheck)
+    g.add_node("run_producer", run_producer)
     g.add_node("finalize", finalize)
 
     g.add_edge(START, "dispatch_workers")
@@ -689,12 +787,13 @@ def build_delegate_graph(*, checkpointer: Any = None):
     g.add_conditional_edges(
         "run_critic",
         decide_rework,
-        {"dispatch_rework": "dispatch_rework", "finalize": "finalize"},
+        {"dispatch_rework": "dispatch_rework", "run_producer": "run_producer"},
     )
     g.add_conditional_edges("dispatch_rework", _fanout_rework, ["run_rework_worker"])
     g.add_edge("run_rework_worker", "aggregate_rework")
     g.add_edge("aggregate_rework", "run_critic_recheck")
-    g.add_edge("run_critic_recheck", "finalize")
+    g.add_edge("run_critic_recheck", "run_producer")
+    g.add_edge("run_producer", "finalize")
     g.add_edge("finalize", END)
 
     if checkpointer is not None:
